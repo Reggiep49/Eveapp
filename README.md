@@ -26,7 +26,7 @@ The command assembles the browser files in `dist/client` for hosting and starts 
 | `dist/js/parent.js`, `dist/styles/parent.css` | The parent's side: Tonight, wishbook, Santa mail, deliveries, keepsakes |
 | `dist/js/ui.js`, `dist/styles/base.css` | Shared controls, colors, type, sound |
 | `dist/js/aurora.js`, `dist/js/hologram.js` | The animated sky and the spinnable 3D toy |
-| `dist/engines/`, `dist/styles/flight.css` | Toy geometry and the letter flight, animation, and sound |
+| `dist/engines/`, `dist/styles/flight.css` | Live page turning, toy geometry, and the letter flight, animation, and sound |
 | `dist/assets/` | Artwork, fonts, and other assets used by the app |
 | `dist/server/index.js`, `drizzle/` | Sites request handler and database schema |
 | `build-family.mjs`, `tools/family-preview.mjs` | Local build and preview commands |

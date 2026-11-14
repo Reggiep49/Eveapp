@@ -138,7 +138,44 @@ export function horn() {
   if (!sound.on) return;
   try { const ac = context(); [310, 420, 605].forEach(f => tone(ac, f, 0, 1, 0.05, 'triangle')); } catch {}
 }
-export const buzz = pattern => { try { navigator.vibrate?.(pattern); } catch {} };
+/** A page being lifted: a short breath of filtered noise. */
+export function paper() {
+  if (!sound.on) return;
+  try {
+    const ac = context(), length = Math.floor(ac.sampleRate * 0.48), buffer = ac.createBuffer(1, length, ac.sampleRate), data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.sin(i / length * Math.PI) * 0.13;
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = buffer; f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.6; g.gain.value = 0.24;
+    s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
+  } catch {}
+}
+
+// Touch feedback. Android browsers vibrate directly. iPhones have no vibration API, but Safari 17.4+
+// gives a system tick whenever a switch-style checkbox is toggled, so we keep a hidden one to nudge.
+let tickSwitch = null;
+function switchTick() {
+  if (!tickSwitch) {
+    tickSwitch = document.createElement('label');
+    tickSwitch.setAttribute('aria-hidden', 'true');
+    tickSwitch.style.cssText = 'position:fixed;left:-99px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.setAttribute('switch', ''); input.tabIndex = -1;
+    tickSwitch.append(input);
+    document.body.append(tickSwitch);
+  }
+  tickSwitch.click();
+}
+const touchScreen = matchMedia('(pointer: coarse)');
+export const buzz = pattern => {
+  try {
+    if (navigator.vibrate) { navigator.vibrate(pattern); return; }
+    if (!touchScreen.matches) return;
+    // A pattern is [buzz, pause, buzz, ...]: play one tick for each buzz.
+    const steps = Array.isArray(pattern) ? pattern : [pattern];
+    let at = 0;
+    steps.forEach((ms, i) => { if (i % 2 === 0) at ? setTimeout(switchTick, at) : switchTick(); at += ms; });
+  } catch {}
+};
 
 /* ---------- Press-and-hold controls ---------- */
 

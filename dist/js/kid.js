@@ -4,7 +4,7 @@ import * as store from './store.js';
 import {realms, ART, findGift, activities} from './data.js';
 import {nav, views, actions, go, render} from './app.js';
 import {icon, safe, plural, toyImage, $, $$, reducedMotion, compact, announce, toast, openDialog, closeDialog,
-  sound, chime, blip, whoosh, horn, buzz, sparkFlight} from './ui.js';
+  sound, chime, blip, whoosh, horn, paper, buzz, sparkFlight} from './ui.js';
 import {mountHologram, hasModel} from './hologram.js';
 
 const name = () => safe(store.childName());
@@ -21,14 +21,14 @@ views.portal = {
     if (!open.length) return `<section class="kid-empty"><span class="eyebrow">ALMOST READY</span><h1 tabindex="-1">The elves are still setting up.</h1><p>Ask a grown-up to add a few discoveries to your world.</p></section>`;
     return `<section class="portal">
       <div class="portal-copy">
-        <span class="eyebrow">A DOOR TO THE NORTH POLE</span>
+        <span class="eyebrow">A LOOKBOOK FROM THE NORTH POLE</span>
         <h1 tabindex="-1">${name()},<br><em>it’s open.</em></h1>
-        <p>${plural(open.length, 'world')} to explore. ${plural(count, 'discovery')} to find.<br>And one letter only you can send.</p>
+        <p>${plural(open.length, 'world')} inside one book. ${plural(count, 'discovery')} to find.<br>Turn the pages. Make a wish.</p>
         ${siblings()}
-        <button class="btn glow xl" data-action="enter-world">Step inside ${icon('arrow', 20)}</button>
+        <button class="btn glow xl" data-action="enter-world">Open the lookbook ${icon('arrow', 20)}</button>
         <span class="hint">${icon(sound.on ? 'sound' : 'mute', 15)} ${sound.on ? 'Sound is on' : 'Even more magical with sound on'}</span>
       </div>
-      <button class="portal-door" data-action="enter-world" aria-label="Step inside the first world">
+      <button class="portal-door" data-action="enter-world" aria-label="Open the lookbook">
         <span class="door-ring r1"></span><span class="door-ring r2"></span><span class="door-ring r3"></span>
         <span class="door-glass"><img src="assets/realm-${open[0].id}.webp" alt="" draggable="false"></span>
         <span class="door-label">${open[0].title}</span>
@@ -50,182 +50,156 @@ actions.profile = el => {
   views[nav.page].mode === 'kid' ? go('portal') : render();
 };
 
-/* ---------- World explorer ---------- */
+/* ---------- The lookbook: real pages you turn by hand ---------- */
 
-let world = null;
-const lastLook = {realm: null, fx: 0.5, fy: 0.5}; // where the child was looking, so a redraw does not jump
+let book = null;
+const leafOf = t => (t.x < 50 ? 'left' : 'right');
+/** A desktop page is a whole spread; a phone page is one leaf of it. */
+function bookPages() {
+  const ok = store.curated().map(g => g.id);
+  return openRealms().flatMap(r => compact.matches
+    ? ['left', 'right'].map(leaf => ({...r, leaf, toys: r.toys.filter(t => leafOf(t) === leaf)})).filter(p => p.toys.some(t => ok.includes(t.id)))
+    : [{...r, leaf: null}]);
+}
+function pageTextures(page) {
+  const ok = store.curated().map(g => g.id);
+  return (page.leaf ? [page.leaf] : ['left', 'right']).map(half => ({src: `assets/realm-${page.id}.webp`, half,
+    hidden: page.toys.filter(t => leafOf(t) === half && !ok.includes(t.id))}));
+}
 
 views.world = {
   mode: 'kid', opaque: true,
   html() {
-    const open = openRealms();
-    if (!open.length) return views.portal.html();
-    nav.realm = Math.max(0, Math.min(nav.realm, open.length - 1));
-    const realm = open[nav.realm], ok = store.curated().map(g => g.id), wishes = store.profile().wishes;
-    const found = realm.toys.filter(t => ok.includes(t.id));
-    const box = t => `left:${t.x - t.w / 2}%;top:${t.y - t.h / 2}%;width:${t.w}%;height:${t.h}%`;
-    return `<section class="world" style="--glow:${realm.color}">
-      <div class="world-viewport" id="world-viewport">
-        <div class="world-plane" id="world-plane">
-          <img class="world-art" src="assets/realm-${realm.id}.webp" alt="${realm.title}: an illustrated scene with ${found.length} toys to discover" draggable="false">
-          ${realm.toys.map((t, i) => {
-            if (!ok.includes(t.id)) return `<span class="veil" style="${box(t)}"><i>${icon('gift', 22)}</i><b>Still wrapped</b></span>`;
-            const gift = findGift(t.id), on = wishes.includes(t.id);
-            return `<button class="beacon ${on ? 'wished' : ''} ${t.y > 60 ? 'low' : ''}" data-action="toy" data-id="${t.id}" data-key="toy-${t.id}" style="${box(t)};--i:${i}" aria-label="${gift.name}${on ? ', on your wish list' : ''}">
-              <span class="reticle" aria-hidden="true"></span>
-              <span class="tag"><i class="pulse">${on ? icon('star', 13) : ''}</i><span>${gift.name}</span></span></button>`;
-          }).join('')}
-          <span class="world-sweep" aria-hidden="true"></span>
-        </div>
-        <canvas class="world-motes" id="world-motes" aria-hidden="true"></canvas>
-        <div class="world-shade" aria-hidden="true"></div>
-      </div>
+    const pages = bookPages();
+    if (!pages.length) return views.portal.html();
+    nav.realm = Math.max(0, Math.min(nav.realm, pages.length - 1));
+    const page = pages[nav.realm], ok = store.curated().map(g => g.id), wishes = store.profile().wishes;
+    const found = page.toys.filter(t => ok.includes(t.id)), last = nav.realm === pages.length - 1;
+    const box = t => { const k = page.leaf ? 2 : 1, x = page.leaf ? (t.x % 50) * 2 : t.x; return `left:${x - t.w * k / 2}%;top:${t.y - t.h / 2}%;width:${t.w * k}%;height:${t.h}%`; };
+    return `<section class="lookbook" style="--glow:${page.color}">
+      <div class="book-backdrop" aria-hidden="true"><img src="assets/realm-${page.id}-sm.webp" alt=""></div>
       <header class="world-title">
-        <span class="eyebrow">WORLD ${nav.realm + 1} OF ${open.length} <i>✦</i> ${plural(found.length, 'discovery')}</span>
-        <h1 tabindex="-1">${realm.title}</h1>
-        <p>${realm.line}</p>
+        <span class="eyebrow">PAGE ${nav.realm + 1} OF ${pages.length} <i>✦</i> ${plural(found.length, 'discovery')}</span>
+        <h1 tabindex="-1">${page.title}</h1>
+        <p>${page.line}</p>
       </header>
-      <div class="look-hint" id="look-hint">${icon('hand', 18)} <span>${compact.matches ? 'Drag to look around. Tap anything that glows.' : 'Move to look around. Tap anything that glows.'}</span></div>
-      <div class="finder" role="group" aria-label="Find a toy in this world">${found.map(t => { const gift = findGift(t.id), on = wishes.includes(t.id);
-        return `<button class="find ${on ? 'wished' : ''}" data-action="find" data-id="${t.id}" data-key="find-${t.id}" aria-label="Find ${gift.name}">${toyImage(gift, 44)}${on ? `<i>${icon('star', 10)}</i>` : ''}</button>`; }).join('')}</div>
-      <nav class="realm-rail" aria-label="Worlds">
-        <button class="rail-arrow" data-action="realm" data-index="${nav.realm - 1}" aria-label="Previous world" ${nav.realm === 0 ? 'disabled' : ''}>${icon('back', 20)}</button>
-        ${open.map((r, i) => `<button class="rail-world" data-action="realm" data-index="${i}" data-key="realm-${i}" style="--glow:${r.color}" ${i === nav.realm ? 'aria-current="true"' : ''} aria-label="${r.title}">
-          <img src="assets/realm-${r.id}-sm.webp" alt="" draggable="false"><span>${r.short}</span></button>`).join('')}
-        ${nav.realm === open.length - 1
-          ? `<button class="rail-arrow go" data-action="go" data-page="wishes" aria-label="See my wishes">${icon('star', 20)}</button>`
-          : `<button class="rail-arrow" data-action="realm" data-index="${nav.realm + 1}" aria-label="Next world">${icon('arrow', 20)}</button>`}
+      <div class="book-table ${page.leaf ? 'portrait-book' : ''}" id="book-table">
+        <div class="desk-shadow"></div><div class="book-cover-base"></div><div class="gilded-page-stack"></div>
+        <div class="folio-volume" id="folio-volume">
+          <div class="page-fallback" data-leaf="${page.leaf || 'both'}"><img src="assets/realm-${page.id}.webp" alt="${page.title}: an illustrated page with ${found.length} toys to discover" draggable="false">
+            ${page.toys.filter(t => !ok.includes(t.id)).map(t => `<span class="veil" style="${box(t)}"><i>${icon('gift', 22)}</i><b>Still wrapped</b></span>`).join('')}</div>
+          <canvas id="paper-engine" class="paper-engine" aria-label="A storybook. Drag a page across to turn it."></canvas>
+          <div class="book-spine" aria-hidden="true"></div>
+          <div class="discovery-layer">${found.map((t, i) => { const gift = findGift(t.id), on = wishes.includes(t.id);
+            return `<button class="beacon ${on ? 'wished' : ''} ${t.y > 60 ? 'low' : ''}" data-action="toy" data-id="${t.id}" data-key="toy-${t.id}" style="${box(t)};--i:${i}" aria-label="${gift.name}${on ? ', on your wish list' : ''}">
+              <span class="reticle" aria-hidden="true"></span><span class="tag"><i class="pulse">${on ? icon('star', 13) : ''}</i><span>${gift.name}</span></span></button>`; }).join('')}</div>
+          ${nav.realm > 0 ? '<span class="paper-corner left" aria-hidden="true"></span>' : ''}${last ? '' : '<span class="paper-corner right" aria-hidden="true"></span>'}
+        </div>
+      </div>
+      <nav class="realm-rail" aria-label="Pages">
+        <button class="rail-arrow" data-action="turn" data-index="${nav.realm - 1}" data-key="turn-back" aria-label="Turn back a page" ${nav.realm === 0 ? 'disabled' : ''}>${icon('back', 20)}</button>
+        <div class="rail-middle"><span class="turn-hint">${icon('hand', 16)} Drag a page to turn it</span>
+          <span class="page-dots">${pages.map((p, i) => `<button data-action="turn" data-index="${i}" data-key="dot-${i}" style="--glow:${p.color}" aria-label="Page ${i + 1}: ${p.title}" ${i === nav.realm ? 'aria-current="true"' : ''}></button>`).join('')}</span></div>
+        ${last ? `<button class="rail-arrow go" data-action="go" data-page="wishes" data-key="turn-on" aria-label="See my wishes">${icon('star', 20)}</button>`
+          : `<button class="rail-arrow" data-action="turn" data-index="${nav.realm + 1}" data-key="turn-on" aria-label="Turn the page">${icon('arrow', 20)}</button>`}
       </nav>
     </section>`;
   },
-  mount(root) { world = mountWorld(root); },
-  unmount() { world?.destroy(); world = null; },
+  mount(root) { book = mountBook(root); },
+  unmount() { book?.destroy(); book = null; },
 };
 
-function mountWorld(root) {
-  const viewport = $('#world-viewport', root), plane = $('#world-plane', root), canvas = $('#world-motes', root);
-  if (!viewport) return null;
-  const abort = new AbortController(), opts = {signal: abort.signal};
-  const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const s = {w: 0, h: 0, pw: 0, ph: 0, x: 0, y: 0, tx: 0, ty: 0, lookX: 0, lookY: 0, vx: 0, vy: 0, drag: null, moved: false, frame: 0, alive: true};
-  const clampX = v => Math.min(0, Math.max(s.w - s.pw, v)), clampY = v => Math.min(0, Math.max(s.h - s.ph, v));
+function mountBook(root) {
+  const canvas = $('#paper-engine', root), host = $('#folio-volume', root);
+  if (!canvas || typeof EveBookEngine === 'undefined') return null;
+  const single = compact.matches, abort = new AbortController(), opts = {signal: abort.signal};
+  const engine = new EveBookEngine(canvas, {single, reduced: reducedMotion.matches});
+  const usable = () => engine.ready && !engine.failed;
+  let gesture = null, turning = false, alive = true, suppress = false;
 
-  function layout(keep = true) {
-    const fx = s.pw ? (s.w / 2 - s.tx) / s.pw : 0.5, fy = s.ph ? (s.h / 2 - s.ty) / s.ph : 0.5;
-    s.w = viewport.clientWidth; s.h = viewport.clientHeight;
-    const scale = Math.max(s.w / ART.width, s.h / ART.height) * 1.07;
-    s.pw = ART.width * scale; s.ph = ART.height * scale;
-    plane.style.width = s.pw + 'px'; plane.style.height = s.ph + 'px';
-    s.tx = clampX(s.w / 2 - (keep ? fx : 0.5) * s.pw); s.ty = clampY(s.h / 2 - (keep ? fy : 0.5) * s.ph);
-    const d = Math.min(devicePixelRatio || 1, 1.5);
-    canvas.width = s.w * d; canvas.height = s.h * d;
-    ctx.setTransform(d, 0, 0, d, 0, 0);
-  }
-  const ctx = canvas.getContext('2d');
-  const glow = getComputedStyle($('.world', root)).getPropertyValue('--glow').trim() || '#ffd58a';
-  const motes = Array.from({length: compact.matches ? 26 : 46}, () => ({x: Math.random(), y: Math.random(), z: 0.4 + Math.random() * 1.4, r: 0.6 + Math.random() * 1.8, p: Math.random() * 6.28}));
+  engine.setPages(pageTextures(bookPages()[nav.realm])).then(loaded => {
+    if (!alive) return;
+    host.classList.toggle('engine-ready', loaded);
+    // Warm the neighbouring pages so the first turn is as smooth as the rest.
+    if (loaded) for (const p of bookPages()) for (const tex of pageTextures(p)) engine.texture(tex).catch(() => {});
+  });
 
-  function tick(now) {
-    if (!s.alive) return;
-    if (!s.drag) {
-      s.tx = clampX(s.tx + s.vx); s.ty = clampY(s.ty + s.vy);
-      s.vx *= 0.93; s.vy *= 0.93;
-    }
-    const gx = clampX(s.tx + s.lookX), gy = clampY(s.ty + s.lookY);
-    s.x += (gx - s.x) * (s.drag ? 0.5 : 0.12); s.y += (gy - s.y) * (s.drag ? 0.5 : 0.12);
-    plane.style.transform = `translate3d(${s.x.toFixed(2)}px,${s.y.toFixed(2)}px,0)`;
-    ctx.clearRect(0, 0, s.w, s.h);
-    if (!document.hidden) {
-      ctx.fillStyle = glow;
-      for (const m of motes) {
-        const t = reducedMotion.matches ? 0 : now * 0.00006;
-        const px = ((m.x + s.x * m.z * 0.0006 + Math.sin(t * 9 + m.p) * 0.02) % 1 + 1) % 1 * s.w;
-        const py = ((m.y - t * m.z * 0.6 + s.y * m.z * 0.0004) % 1 + 1) % 1 * s.h;
-        ctx.globalAlpha = 0.12 + 0.3 * (0.5 + 0.5 * Math.sin(now * 0.0012 + m.p)) * (m.z / 1.8);
-        ctx.beginPath(); ctx.arc(px, py, m.r * m.z, 0, 6.283); ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-    s.frame = requestAnimationFrame(tick);
-  }
-  const explored = () => { $('#look-hint')?.classList.add('gone'); };
+  const arrive = index => { nav.realm = index; turning = false; render(); $('#app').classList.add('warp-in'); const p = bookPages()[index]; if (p) announce(`Page ${index + 1}. ${p.title}.`); };
+  const land = () => { buzz([16, 34, 26]); blip(420); };
 
-  viewport.addEventListener('pointerdown', event => {
-    if (event.button > 0) return;
-    s.drag = {x: event.clientX, y: event.clientY, id: event.pointerId, t: performance.now()};
-    s.moved = false; s.vx = s.vy = 0;
+  host.addEventListener('pointerdown', event => {
+    if (turning || event.button > 0) return;
+    gesture = {x: event.clientX, y: event.clientY, id: event.pointerId, rect: host.getBoundingClientRect(), progress: 0, notch: 0, active: false, lastX: event.clientX, lastT: performance.now(), speed: 0};
   }, opts);
-  viewport.addEventListener('pointermove', event => {
-    if (!s.drag) {
-      if (fine && !reducedMotion.matches) {
-        s.lookX = -(event.clientX / s.w - 0.5) * Math.min(s.pw - s.w, 260);
-        s.lookY = -(event.clientY / s.h - 0.5) * Math.min(s.ph - s.h, 70);
-      }
-      return;
+  host.addEventListener('pointermove', event => {
+    const g = gesture; if (!g) return;
+    const dx = event.clientX - g.x, dy = event.clientY - g.y;
+    if (!g.active && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      const direction = dx < 0 ? 1 : -1, target = nav.realm + direction;
+      if (target < 0 || target >= bookPages().length) { gesture = null; host.classList.remove('nope'); void host.offsetWidth; host.classList.add('nope'); buzz(30); return; }
+      Object.assign(g, {active: true, direction, target});
+      turning = suppress = true;
+      host.setPointerCapture(g.id); host.classList.add('turning');
+      if (usable()) engine.prepare(direction, pageTextures(bookPages()[target])).then(() => { if (gesture === g && alive) engine.setProgress(g.progress); });
+      paper(); buzz(10); // the page lifts off the stack
     }
-    const dx = event.clientX - s.drag.x, dy = event.clientY - s.drag.y;
-    if (!s.moved && Math.hypot(dx, dy) < 9) return;
-    if (!s.moved) { s.moved = true; viewport.setPointerCapture(s.drag.id); viewport.classList.add('grabbing'); explored(); }
-    s.tx = clampX(s.tx + dx); s.ty = clampY(s.ty + dy);
-    s.vx = dx; s.vy = dy;
-    s.drag.x = event.clientX; s.drag.y = event.clientY;
+    if (!g.active) return;
+    event.preventDefault();
+    g.progress = Math.max(0, Math.min(0.98, -dx * g.direction / (g.rect.width * (single ? 0.9 : 0.58))));
+    if (usable()) engine.setProgress(g.progress);
+    // Paper has grain: a fine tick each time the page bends a little further.
+    const notch = Math.floor(g.progress / 0.11);
+    if (notch !== g.notch) { g.notch = notch; buzz(4); }
+    const now = performance.now();
+    if (now - g.lastT > 16) { g.speed = (event.clientX - g.lastX) / (now - g.lastT); g.lastX = event.clientX; g.lastT = now; }
   }, opts);
   const release = () => {
-    if (!s.drag) return;
-    const was = s.moved; s.drag = null; viewport.classList.remove('grabbing');
-    if (was) setTimeout(() => { s.moved = false; }, 60); else s.vx = s.vy = 0;
+    const g = gesture; gesture = null;
+    if (!g?.active) return;
+    const flick = -g.speed * g.direction > 0.45 && g.progress > 0.06;
+    const complete = g.progress > 0.3 || flick;
+    const done = () => { if (!alive) return; if (complete) { land(); arrive(g.target); } else { turning = false; host.classList.remove('turning'); buzz(6); } };
+    if (usable()) engine.animate(complete ? 1 : 0, done); else done();
+    setTimeout(() => { suppress = false; }, 80);
   };
-  viewport.addEventListener('pointerup', release, opts);
-  viewport.addEventListener('pointercancel', release, opts);
-  // A drag must not open whatever toy the finger happened to end on.
-  viewport.addEventListener('click', event => { if (s.moved) { event.preventDefault(); event.stopPropagation(); } }, {...opts, capture: true});
-  viewport.addEventListener('wheel', event => {
-    event.preventDefault();
-    s.tx = clampX(s.tx - (Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY)); explored();
-  }, {...opts, passive: false});
-  // Keyboard: focusing a toy brings it to the middle; arrows look around.
-  plane.addEventListener('focusin', event => {
-    const b = event.target.closest('.beacon'); if (!b) return;
-    viewport.scrollLeft = viewport.scrollTop = 0;
-    s.tx = clampX(s.w / 2 - (b.offsetLeft + b.offsetWidth / 2)); s.ty = clampY(s.h / 2 - (b.offsetTop + b.offsetHeight / 2));
-    s.lookX = s.lookY = 0;
-  }, opts);
+  host.addEventListener('pointerup', release, opts);
+  host.addEventListener('pointercancel', () => { const g = gesture; gesture = null; if (!g?.active) return; turning = false; host.classList.remove('turning'); if (usable()) engine.setProgress(0); suppress = false; }, opts);
+  // Dragging a page must not open the toy the finger started on.
+  host.addEventListener('click', event => { if (suppress) { event.preventDefault(); event.stopPropagation(); suppress = false; } }, {...opts, capture: true});
   document.addEventListener('keydown', event => {
-    if ($('#dialog').open || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-    const step = {ArrowLeft: [180, 0], ArrowRight: [-180, 0], ArrowUp: [0, 90], ArrowDown: [0, -90]}[event.key];
-    s.tx = clampX(s.tx + step[0]); s.ty = clampY(s.ty + step[1]); s.lookX = s.lookY = 0; explored(); event.preventDefault();
+    if ($('#dialog').open || event.target.matches('input, textarea, select')) return;
+    if (event.key === 'ArrowRight') turnTo(nav.realm + 1);
+    if (event.key === 'ArrowLeft') turnTo(nav.realm - 1);
   }, opts);
-  const focusOn = (id, pulse = true) => {
-    const b = plane.querySelector(`.beacon[data-id="${id}"]`); if (!b) return;
-    s.tx = clampX(s.w / 2 - (b.offsetLeft + b.offsetWidth / 2)); s.ty = clampY(s.h / 2 - (b.offsetTop + b.offsetHeight / 2));
-    s.lookX = s.lookY = s.vx = s.vy = 0;
-    if (!pulse) return;
-    explored(); b.classList.remove('located'); void b.offsetWidth; b.classList.add('located');
-  };
-  const observer = new ResizeObserver(() => layout(true));
-  layout(false);
-  const realmId = $('.world-art', root).src;
-  if (lastLook.realm !== realmId && compact.matches) focusOn(plane.querySelector('.beacon')?.dataset.id, false); // phones open on the first toy, not an empty floor
-  if (lastLook.realm === realmId) { s.tx = clampX(s.w / 2 - lastLook.fx * s.pw); s.ty = clampY(s.h / 2 - lastLook.fy * s.ph); explored(); }
-  lastLook.realm = realmId;
-  s.x = s.tx; s.y = s.ty;
-  observer.observe(viewport);
-  s.frame = requestAnimationFrame(tick);
-  setTimeout(explored, 7000);
-  return {focusOn, destroy() { lastLook.fx = (s.w / 2 - s.tx) / s.pw; lastLook.fy = (s.h / 2 - s.ty) / s.ph; s.alive = false; cancelAnimationFrame(s.frame); abort.abort(); observer.disconnect(); }};
-}
 
-actions.find = el => { world?.focusOn(el.dataset.id); blip(760); };
-actions.realm = el => {
-  const index = Number(el.dataset.index), open = openRealms();
-  if (index === nav.realm || index < 0 || index >= open.length) return;
-  const viewport = $('#world-viewport');
-  whoosh();
-  const swap = () => { nav.realm = index; render(); $('#app').classList.add('warp-in'); announce(`${open[index].title}. ${open[index].line}`); };
-  if (!viewport || reducedMotion.matches) return swap();
-  viewport.classList.add(index > nav.realm ? 'warp-forward' : 'warp-back');
-  setTimeout(swap, 360);
-};
+  async function turnTo(index) {
+    const pages = bookPages();
+    if (turning || index === nav.realm || index < 0 || index >= pages.length) return;
+    const direction = index > nav.realm ? 1 : -1;
+    turning = true; host.classList.add('turning');
+    paper(); buzz(10);
+    if (!usable()) { host.classList.add(direction > 0 ? 'fallback-forward' : 'fallback-back'); return setTimeout(() => { if (alive) { land(); arrive(index); } }, reducedMotion.matches ? 1 : 520); }
+    try {
+      await engine.prepare(direction, pageTextures(pages[index]));
+      if (!alive) return;
+      // One soft tick mid-air, then the page lands.
+      setTimeout(() => { if (alive && turning) buzz(4); }, 380);
+      engine.animate(1, () => { if (alive) { land(); arrive(index); } });
+    } catch { arrive(index); }
+  }
+  return {turnTo, destroy() { alive = false; abort.abort(); engine.destroy(); }};
+}
+actions.turn = el => book?.turnTo(Number(el.dataset.index));
+
+/** After a toy is closed, update its marker in place so the book is not redrawn. */
+function refreshBeacons() {
+  const wishes = store.profile().wishes;
+  $$('.discovery-layer .beacon').forEach(b => {
+    const on = wishes.includes(b.dataset.id);
+    b.classList.toggle('wished', on);
+    b.querySelector('.pulse').innerHTML = on ? icon('star', 13) : '';
+  });
+}
 
 /* ---------- A toy, up close ---------- */
 
@@ -269,7 +243,7 @@ function showToy(id) {
         <button class="btn glow wish-btn" data-action="wish" data-id="${id}" aria-pressed="${on}">${wishLabel(on)}</button>
       </div>
     </div>
-  </div>`, {variant: 'toy', onClose() { holo?.destroy(); holo = null; if (nav.page === 'world' || nav.page === 'wishes') render(); }});
+  </div>`, {variant: 'toy', onClose() { holo?.destroy(); holo = null; if (nav.page === 'world') refreshBeacons(); else if (nav.page === 'wishes') render(); }});
 }
 const wishLabel = on => on ? `${icon('check', 19)} <span>On my wish list</span>` : `${icon('star', 19)} <span>Make it a wish</span>`;
 

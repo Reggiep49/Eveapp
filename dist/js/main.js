@@ -31,7 +31,7 @@ document.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || dialogOpen() || event.target.matches('input, textarea, select')) return;
   if (nav.page === 'keepsakes') go('mail');
 });
-compact.addEventListener('change', () => { if (nav.page === 'wishes') render(); });
+compact.addEventListener('change', () => { if (nav.page === 'world') nav.realm = 0; if (nav.page === 'wishes' || nav.page === 'world') render(); });
 
 initDialog();
 initParentInputs();
