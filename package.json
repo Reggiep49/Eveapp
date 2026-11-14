@@ -1,0 +1,1 @@
+{"name":"eve-family","private":true,"type":"module","scripts":{"dev":"node build-family.mjs && node tools/family-preview.mjs"}}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#091626">
+  <meta name="description" content="Choose the gifts, open the Christmas lookbook, and send a wish list with a little North Pole magic.">
+  <title>Eve · A little Christmas magic</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="preload" href="assets/eve-snowglobe.png" as="image">
+  <link rel="stylesheet" href="eve.css?v=8">
+  <link rel="stylesheet" href="storybook.css?v=8">
+  <script src="holiday.js?v=8" defer></script>
+  <script src="model.js?v=8" defer></script>
+  <script src="book-engine.js?v=8" defer></script>
+  <script src="northstar-flight.js?v=8" defer></script>
+  <script src="eve.js?v=8" defer></script>
+  <script src="storybook.js?v=8" defer></script>
+  <script src="toy-models-v8.js?v=8" defer></script>
+  <link rel="stylesheet" href="family.css?v=9">
+  <script src="family.js?v=9" defer></script>
+</head>
+<body>
+  <div class="world" id="world" aria-hidden="true"><img class="world-art" src="assets/eve-snowglobe.png" alt=""><div class="world-shade"></div><canvas id="snow"></canvas></div>
+  <header id="chrome" class="chrome"></header>
+  <main id="app"></main>
+  <nav id="dock" class="dock" aria-label="Family space"></nav>
+  <div id="toast" class="toast" role="status"></div>
+  <div class="sr-only" id="status" role="status" aria-live="polite"></div>
+  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+</body>
+</html>

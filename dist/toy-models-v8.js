@@ -1,0 +1,54 @@
+/* Additional interactive toy geometry, built from the same local primitive renderer. */
+toyModels.robot={aim:1.35,view:-.45,size:3.6,faces:[
+  box(0,1.05,0,1.2,1.2,.7,'orange'),box(0,2,0,1.1,.8,.72,'orange'),
+  oval(-.25,2.08,.38,.14,.16,.08,'snow'),oval(.25,2.08,.38,.14,.16,.08,'snow'),oval(-.25,2.08,.45,.065,.08,.04,'ink'),oval(.25,2.08,.45,.065,.08,.04,'ink'),
+  box(0,1.84,.38,.4,.05,.03,'ink'),tube(0,2.53,0,.04,.3,'silver'),oval(0,2.72,0,.12,.12,.12,'red'),
+  tube(-.85,1.13,0,.16,.95,'silver',-.2),tube(.85,1.13,0,.16,.95,'silver',.2),
+  box(-.37,.25,.08,.45,.5,.64,'orange'),box(.37,.25,.08,.45,.5,.64,'orange'),box(0,1.15,.37,.75,.62,.05,'ink'),
+  ...[-.28,0,.28].map((x,i)=>oval(x,.64,.39,.09,.09,.05,['red','green','blue'][i]))].flat()};
+toyModels.dinosaur={aim:1.1,view:-.65,size:4.6,faces:[
+  oval(0,1,0,.8,.73,.48,'green'),oval(.7,1.7,0,.55,.42,.4,'green'),oval(1.08,1.62,.02,.52,.24,.36,'green'),oval(1.04,1.49,.02,.49,.12,.33,'cream'),
+  oval(.83,1.88,.34,.08,.09,.055,'yellow'),oval(.86,1.88,.385,.04,.05,.025,'ink'),
+  oval(-.45,.43,.4,.3,.46,.24,'green',-.25),oval(-.45,.43,-.4,.3,.46,.24,'green',-.25),box(-.2,.12,.45,.7,.2,.35,'green'),box(-.2,.12,-.45,.7,.2,.35,'green'),
+  oval(-1,.87,0,.65,.22,.25,'green',.3),oval(-1.7,1.05,0,.45,.13,.13,'green',.25),
+  oval(.43,1.18,.43,.32,.12,.12,'green',-.6),oval(.43,1.18,-.43,.32,.12,.12,'green',-.6)].flat()};
+toyModels.fireengine={aim:.85,view:-.52,size:5.2,faces:[
+  box(0,.65,0,4.2,.7,1.45,'red'),box(1.1,1.22,0,1.55,.8,1.42,'red'),box(1.22,1.33,.73,1.0,.44,.03,'ink'),box(1.22,1.33,-.73,1.0,.44,.03,'ink'),box(1.89,1.33,0,.03,.45,1.15,'blue'),
+  box(2.13,.63,0,.12,.28,1.43,'silver'),box(-2.13,.63,0,.12,.28,1.43,'silver'),
+  ...[-.45,.45].map(z=>box(-.1,1.78,z,4.0,.09,.10,'silver')),
+  ...Array.from({length:11},(_,i)=>box(-1.7+i*.32,1.78,0,.07,.08,.92,'silver')),
+  oval(1.25,1.69,0,.26,.12,.22,'blue'),wheels([-1.25,1.2],.82,.39,.4)].flat()};
+toyModels.dollhouse={aim:1.45,view:-.4,size:4.6,faces:[
+  box(0,.15,0,3.7,.2,1.8,'timber'),box(0,1.45,-.75,3.5,2.5,.14,'cream'),box(-1.7,1.45,0,.14,2.5,1.65,'timber'),box(1.7,1.45,0,.14,2.5,1.65,'timber'),
+  box(0,1.3,0,3.4,.12,1.65,'timber'),box(0,2,0,.1,1.3,1.65,'timber'),roof(0,2.7,0,3.9,.9,1.9,'coral'),
+  box(-.8,.43,.1,1,.45,.68,'pink'),box(.8,.55,.1,.8,.08,.65,'timber'),box(-.9,1.52,.1,1.1,.3,.65,'lilac'),box(.8,1.65,.1,.55,.6,.6,'teal')].flat()};
+toyModels.bear={aim:1.1,view:-.4,size:3.5,faces:[
+  oval(0,.8,0,.6,.7,.44,'timber'),oval(0,1.7,.03,.6,.53,.47,'timber'),oval(-.48,2.05,0,.25,.26,.19,'timber'),oval(.48,2.05,0,.25,.26,.19,'timber'),
+  oval(0,1.55,.45,.34,.23,.18,'cream'),oval(0,1.66,.6,.12,.08,.06,'ink'),oval(-.24,1.83,.45,.055,.07,.04,'ink'),oval(.24,1.83,.45,.055,.07,.04,'ink'),
+  oval(-.55,.8,.1,.22,.48,.25,'timber',-.25),oval(.55,.8,.1,.22,.48,.25,'timber',.25),oval(-.34,.24,.33,.32,.23,.42,'timber'),oval(.34,.24,.33,.32,.23,.42,'timber'),oval(0,.8,.4,.37,.43,.08,'cream')].flat()};
+toyModels.ukulele={aim:1.25,view:-.4,size:3.6,faces:[
+  oval(0,.6,0,.64,.6,.17,'gold'),oval(0,1.15,0,.48,.43,.16,'gold'),oval(0,1.02,.16,.21,.22,.02,'ink'),box(0,1.95,0,.2,1.7,.13,'timber'),box(0,2.83,0,.36,.5,.16,'timber'),box(0,.5,.19,.52,.13,.06,'timber'),
+  ...[-.065,-.02,.02,.065].map(x=>box(x,1.55,.2,.009,2.2,.008,'silver')),
+  ...[-1,1].flatMap(s=>[tube(s*.23,2.73,0,.05,.14,'silver',Math.PI/2),tube(s*.23,2.94,0,.05,.14,'silver',Math.PI/2)])].flat()};
+toyModels.craft={aim:.7,view:-.38,pitch:.6,size:4.4,faces:[
+  box(0,.2,0,3.2,.4,2.15,'timber'),box(0,.43,0,3.0,.08,1.96,'cream'),box(0,1.03,-1,3.2,1.3,.13,'timber'),
+  oval(-.8,.72,.15,.4,.35,.4,'pink'),oval(.1,.65,.25,.35,.3,.37,'teal'),oval(.9,.67,-.1,.37,.32,.37,'yellow'),
+  ...[-1,-.4,.2,.8].map((x,i)=>box(x,.55,.75,.45,.08,.35,['purple','green','red','blue'][i]))].flat()};
+toyModels.rocket={aim:1.6,view:-.5,size:4.2,faces:[
+  tube(0,1.5,0,.43,2.4,'snow'),roof(0,2.7,0,.87,.95,.87,'red'),tube(0,.45,0,.34,.35,'ink'),tube(0,1.55,0,.44,.36,'red'),
+  oval(0,2,.42,.24,.25,.05,'gold'),oval(0,2,.47,.18,.19,.03,'blue'),
+  ...[-1,1].map(s=>box(s*.5,.65,0,.25,1.2,.6,'red')),box(0,.65,-.5,.6,1.2,.25,'red'),tube(0,.13,0,.75,.13,'gold')].flat()};
+toyModels.globe={aim:1.2,view:-.5,size:3.4,faces:[
+  oval(0,1.55,0,.88,.88,.88,'blue'),tube(0,.45,0,.09,.65,'gold'),tube(0,.11,0,.65,.16,'gold'),
+  oval(-.3,1.85,.75,.28,.37,.1,'gold',.3),oval(.23,1.24,.78,.19,.36,.1,'gold',-.2),oval(.57,1.7,.6,.23,.15,.09,'gold'),
+  ...Array.from({length:24},(_,i)=>{const a=i/24*Math.PI*2;return oval(Math.cos(a)*.96,1.55+Math.sin(a)*.96,0,.045,.045,.045,'gold');})].flat()};
+toyModels.solar={aim:1.35,view:-.5,size:4.4,faces:[
+  tube(0,.16,0,1.2,.2,'blue'),tube(0,.8,0,.07,1.3,'gold'),oval(0,1.75,0,.36,.36,.36,'yellow'),
+  ...Array.from({length:7},(_,i)=>{const a=i/7*Math.PI*2,r=1.0+(i%3)*.25,x=Math.cos(a)*r,z=Math.sin(a)*r,y=.8+(i%3)*.42;return [tube(x,y/2+.2,z,.025,y,'gold'),oval(x,y+.35,z,.14+(i%3)*.05,.14+(i%3)*.05,.14+(i%3)*.05,['red','teal','blue','gold','lilac','orange','silver'][i])];}).flat()].flat()};
+toyModels.microscope={aim:1.05,view:-.5,size:3.6,faces:[
+  box(0,.15,0,1.8,.26,1.25,'silver'),box(-.4,.85,-.25,.35,1.3,.45,'teal'),tube(-.2,1.65,0,.16,1.6,'silver',-.35),tube(.05,2.39,0,.2,.3,'ink',-.35),
+  box(.25,.9,.1,1.2,.1,.95,'ink'),oval(-.4,1.05,.3,.21,.21,.09,'gold'),tube(.1,1.1,.1,.1,.4,'silver')].flat()};
+toyModels.astronaut={aim:1.15,view:-.4,size:3.5,faces:[
+  oval(0,.85,0,.52,.67,.38,'snow'),oval(0,1.75,0,.62,.61,.52,'snow'),oval(0,1.8,.41,.47,.4,.17,'blue'),oval(-.2,1.98,.55,.12,.08,.02,'silver'),
+  oval(-.59,.9,0,.22,.45,.23,'snow',-.2),oval(.59,.9,0,.22,.45,.23,'snow',.2),oval(-.29,.25,.18,.27,.25,.36,'snow'),oval(.29,.25,.18,.27,.25,.36,'snow'),
+  box(0,.9,.38,.6,.4,.08,'silver'),box(.18,1.13,.41,.14,.08,.03,'red'),box(0,.85,-.4,.7,.8,.3,'silver')].flat()};
