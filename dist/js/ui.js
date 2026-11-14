@@ -97,7 +97,7 @@ export function initDialog() {
 /* ---------- Sound and haptics ---------- */
 
 export const sound = {
-  on: localStorage.getItem('eve-sound') === 'on',
+  on: (() => { try { return localStorage.getItem('eve-sound') === 'on'; } catch { return false; } })(),
   toggle() { this.on = !this.on; try { localStorage.setItem('eve-sound', this.on ? 'on' : 'off'); } catch {} if (this.on) chime(); return this.on; },
 };
 function context() {

@@ -39,7 +39,8 @@ function normalize(doc) {
 }
 
 export let family = normalize(read(FAMILY_KEY) || freshFamily());
-let profileId = localStorage.getItem(PROFILE_KEY) || family.profiles[0].id;
+const readText = key => { try { return localStorage.getItem(key); } catch { return null; } };
+let profileId = readText(PROFILE_KEY) || family.profiles[0].id;
 
 export const sync = {online: false, revision: 0, writes: 0, lastLetterId: family.letters[0]?.id};
 const listeners = new Set();
@@ -98,6 +99,7 @@ export async function refreshFamily({initial = false, quiet = false} = {}) {
 }
 
 let pending = Promise.resolve();
+let offlineNoted = false; // say "saved on this device" once per offline spell, not on every change
 /** Apply a change locally right away, then replay it on the server copy (with conflict retries). */
 export function updateFamily(change) {
   const local = structuredClone(family);
@@ -115,6 +117,7 @@ export function updateFamily(change) {
         sync.revision = result.revision;
         if (!sync.online) { sync.online = true; emit({type: 'status'}); }
         if (sync.writes === 1) { family = doc; remember(); }
+        offlineNoted = false;
         return true;
       }
       remote = result;
@@ -122,7 +125,7 @@ export function updateFamily(change) {
     throw Error('Concurrent family update');
   }).catch(() => {
     if (sync.online) { sync.online = false; emit({type: 'status'}); }
-    emit({type: 'offline-save'});
+    if (!offlineNoted) { offlineNoted = true; emit({type: 'offline-save'}); }
     return false;
   }).finally(() => { sync.writes--; });
   pending = operation;
