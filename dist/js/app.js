@@ -3,7 +3,7 @@
 import * as store from './store.js';
 import {icon, safe, sound, $, reducedMotion, closeDialog, dismissToast, plural} from './ui.js';
 
-export const nav = {page: 'home', realm: 0, star: null, filter: 'all', deliveryFilter: 'all', morning: null};
+export const nav = {page: 'home', realm: 0, bookOpen: false, star: null, filter: 'all', deliveryFilter: 'all', morning: null};
 export const views = {};    // page -> {mode: 'parent' | 'kid', html(), mount?(root), unmount?(), bare?}
 export const actions = {};  // data-action name -> handler(element, event)
 export const aurora = {setWarm() {}, pause() {}};
@@ -64,6 +64,8 @@ export function render({enter = false} = {}) {
 }
 
 export function go(page, {instant = false} = {}) {
+  // 'portal' means: start at the closed book.
+  if (page === 'portal') { nav.bookOpen = false; page = 'world'; }
   if (!views[page]) return;
   store.flushSetup();
   if (views[nav.page]?.mode === 'kid') store.flushChild();

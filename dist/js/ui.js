@@ -94,88 +94,121 @@ export function initDialog() {
   el.addEventListener('click', event => { if (event.target === el) closeDialog(); });
 }
 
-/* ---------- Sound and haptics ---------- */
+/* ---------- Sound ---------- */
 
+// Sound is part of how the book feels, so it is on unless someone has turned it off.
+const savedSound = (() => { try { return localStorage.getItem('eve-sound'); } catch { return null; } })();
 export const sound = {
-  on: (() => { try { return localStorage.getItem('eve-sound') === 'on'; } catch { return false; } })(),
-  toggle() { this.on = !this.on; try { localStorage.setItem('eve-sound', this.on ? 'on' : 'off'); } catch {} if (this.on) chime(); return this.on; },
+  on: savedSound !== 'off',
+  toggle() { this.on = !this.on; try { localStorage.setItem('eve-sound', this.on ? 'on' : 'off'); } catch {} if (this.on) chime(0.7); else friction.stop(); return this.on; },
 };
 function context() {
-  // The letter-flight score shares this context through the page-level `audioContext`.
+  // The page-level `audioContext` is shared so every sound uses one clock.
   const ac = (window.audioContext ||= new (window.AudioContext || window.webkitAudioContext)());
-  ac.resume();
+  if (ac.state === 'suspended') ac.resume();
   return ac;
 }
-function tone(ac, freq, at, length, volume, type = 'sine') {
+// Browsers only let audio start from a touch or click, so wake it on the first one.
+addEventListener('pointerdown', () => { if (sound.on) { try { context(); } catch {} } }, {capture: true, passive: true});
+
+function tone(ac, freq, at, length, volume, type = 'sine', glideTo) {
   const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + at;
-  o.type = type; o.frequency.value = freq;
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t + length);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(volume, t + 0.015);
+  g.gain.linearRampToValueAtTime(volume, t + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t + length);
   o.connect(g); g.connect(ac.destination);
   o.start(t); o.stop(t + length + 0.05);
 }
-export function chime(level = 1) {
-  if (!sound.on) return;
-  try { const ac = context(); [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => tone(ac, f, i * 0.1, 1.4, 0.035 * level)); } catch {}
+let noiseBuffer = null;
+function noise(ac) {
+  if (!noiseBuffer) { noiseBuffer = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate); const d = noiseBuffer.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const s = ac.createBufferSource(); s.buffer = noiseBuffer; s.loop = true; return s;
 }
-export function blip(freq = 880) {
-  if (!sound.on) return;
-  try { const ac = context(); tone(ac, freq, 0, 0.18, 0.03, 'triangle'); tone(ac, freq * 1.5, 0.05, 0.22, 0.018); } catch {}
+function burst(ac, {freq = 1500, q = 0.7, length = 0.3, volume = 0.2, to, type = 'bandpass', at = 0}) {
+  const s = noise(ac), f = ac.createBiquadFilter(), g = ac.createGain(), t = ac.currentTime + at;
+  f.type = type; f.Q.value = q; f.frequency.setValueAtTime(freq, t); if (to) f.frequency.exponentialRampToValueAtTime(to, t + length);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(volume, t + length * 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + length);
+  s.connect(f); f.connect(g); g.connect(ac.destination); s.start(t, Math.random()); s.stop(t + length + 0.05);
 }
-export function whoosh() {
-  if (!sound.on) return;
-  try {
-    const ac = context(), length = Math.floor(ac.sampleRate * 0.7), buffer = ac.createBuffer(1, length, ac.sampleRate), data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.sin(i / length * Math.PI) * 0.2;
-    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-    s.buffer = buffer; f.type = 'bandpass'; f.Q.value = 0.8;
-    f.frequency.setValueAtTime(300, ac.currentTime); f.frequency.exponentialRampToValueAtTime(2600, ac.currentTime + 0.6);
-    g.gain.value = 0.22; s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
-  } catch {}
-}
-export function horn() {
-  if (!sound.on) return;
-  try { const ac = context(); [310, 420, 605].forEach(f => tone(ac, f, 0, 1, 0.05, 'triangle')); } catch {}
-}
-/** A page being lifted: a short breath of filtered noise. */
-export function paper() {
-  if (!sound.on) return;
-  try {
-    const ac = context(), length = Math.floor(ac.sampleRate * 0.48), buffer = ac.createBuffer(1, length, ac.sampleRate), data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.sin(i / length * Math.PI) * 0.13;
-    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-    s.buffer = buffer; f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.6; g.gain.value = 0.24;
-    s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
-  } catch {}
-}
+const play = fn => { if (!sound.on) return; try { fn(context()); } catch {} };
 
-// Touch feedback. Android browsers vibrate directly. iPhones have no vibration API, but Safari 17.4+
-// gives a system tick whenever a switch-style checkbox is toggled, so we keep a hidden one to nudge.
-let tickSwitch = null;
-function switchTick() {
-  if (!tickSwitch) {
-    tickSwitch = document.createElement('label');
-    tickSwitch.setAttribute('aria-hidden', 'true');
-    tickSwitch.style.cssText = 'position:fixed;left:-99px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
-    const input = document.createElement('input');
-    input.type = 'checkbox'; input.setAttribute('switch', ''); input.tabIndex = -1;
-    tickSwitch.append(input);
-    document.body.append(tickSwitch);
-  }
-  tickSwitch.click();
-}
-const touchScreen = matchMedia('(pointer: coarse)');
-export const buzz = pattern => {
+export const chime = (level = 1) => play(ac => [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(ac, f, i * 0.09, 1.6, 0.03 * level)));
+export const blip = (freq = 880) => play(ac => { tone(ac, freq, 0, 0.16, 0.022, 'triangle'); tone(ac, freq * 1.5, 0.04, 0.2, 0.012); });
+export const whoosh = () => play(ac => burst(ac, {freq: 300, to: 2600, length: 0.7, volume: 0.2, q: 0.8}));
+export const horn = () => play(ac => [310, 420, 605].forEach(f => tone(ac, f, 0, 1, 0.05, 'triangle')));
+/** A sheet lifting off the stack. */
+export const paper = () => play(ac => burst(ac, {freq: 2400, to: 1200, length: 0.22, volume: 0.1, q: 0.5}));
+/** A page coming to rest: soft air, then the pat of paper on paper. */
+export const pageLand = () => play(ac => { burst(ac, {freq: 900, to: 300, length: 0.16, volume: 0.16, q: 0.4}); tone(ac, 150, 0.02, 0.14, 0.11, 'sine', 70); });
+/** Something heavy settling: the book on the desk, the wax seal, the postmark. */
+export const thud = (level = 1) => play(ac => { tone(ac, 110, 0, 0.32, 0.26 * level, 'sine', 42); burst(ac, {freq: 320, length: 0.12, volume: 0.12 * level, q: 0.3, type: 'lowpass'}); });
+/** The cover swinging open. */
+export const coverOpen = () => play(ac => { burst(ac, {freq: 240, to: 900, length: 1.1, volume: 0.16, q: 0.6}); [392, 523.25, 659.25, 783.99].forEach((f, i) => tone(ac, f, 0.25 + i * 0.13, 2.4, 0.03)); });
+/** A wish becoming a star. */
+export const starBorn = () => play(ac => { [523.25, 783.99, 1046.5, 1567.98].forEach((f, i) => tone(ac, f, i * 0.07, 3.2, 0.036)); tone(ac, 130.81, 0, 3, 0.05); });
+export const rise = () => play(ac => { burst(ac, {freq: 260, to: 5200, length: 1.5, volume: 0.2, q: 1.1}); tone(ac, 196, 0, 1.5, 0.035, 'sine', 1174); });
+
+/** A tone that climbs while something is held, and stops the moment it is let go. */
+export function charge() {
+  if (!sound.on) return () => {};
   try {
-    if (navigator.vibrate) { navigator.vibrate(pattern); return; }
-    if (!touchScreen.matches) return;
-    // A pattern is [buzz, pause, buzz, ...]: play one tick for each buzz.
-    const steps = Array.isArray(pattern) ? pattern : [pattern];
-    let at = 0;
-    steps.forEach((ms, i) => { if (i % 2 === 0) at ? setTimeout(switchTick, at) : switchTick(); at += ms; });
-  } catch {}
+    const ac = context(), o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+    o.type = 'sine'; o2.type = 'triangle'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(330, t + 1.2); o2.frequency.setValueAtTime(220, t); o2.frequency.exponentialRampToValueAtTime(660, t + 1.2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.07, t + 1.1);
+    o.connect(g); o2.connect(g); g.connect(ac.destination); o.start(); o2.start();
+    return () => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.05); o.stop(ac.currentTime + 0.3); o2.stop(ac.currentTime + 0.3); } catch {} };
+  } catch { return () => {}; }
+}
+/** Paper dragging against paper: a hiss whose loudness follows how fast the page is moving. */
+export const friction = {
+  node: null,
+  set(amount) {
+    if (!sound.on || (!this.node && amount <= 0)) return;
+    try {
+      const ac = context();
+      if (!this.node) {
+        const s = noise(ac), f = ac.createBiquadFilter(), g = ac.createGain();
+        f.type = 'bandpass'; f.frequency.value = 2600; f.Q.value = 0.45; g.gain.value = 0;
+        s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
+        this.node = {s, f, g};
+      }
+      this.node.g.gain.setTargetAtTime(Math.min(0.09, amount * 0.09), ac.currentTime, 0.04);
+      this.node.f.frequency.setTargetAtTime(1800 + amount * 2200, ac.currentTime, 0.05);
+    } catch {}
+  },
+  stop() { try { this.node?.s.stop(); } catch {} this.node = null; },
 };
+
+/* ---------- Touch feedback ---------- */
+
+// Three routes, best first:
+//  1. A native shell (Capacitor) exposes real haptics, including on iPhone.
+//  2. Android browsers can vibrate directly.
+//  3. iPhone Safari has no vibration call. Toggling a switch-style checkbox makes the system tick,
+//     so a throwaway one is clicked. It is faint, and some in-app browsers ignore it.
+const nativeHaptics = () => window.Capacitor?.Plugins?.Haptics;
+const coarse = matchMedia('(pointer: coarse)');
+function switchTick() {
+  const label = document.createElement('label'), input = document.createElement('input');
+  label.setAttribute('aria-hidden', 'true'); label.style.display = 'none';
+  input.type = 'checkbox'; input.setAttribute('switch', '');
+  label.append(input); document.head.append(label);
+  label.click(); label.remove();
+}
+const strengths = {tick: [6, 'Light'], soft: [10, 'Light'], firm: [22, 'Medium'], heavy: [38, 'Heavy']};
+/** kind: 'tick' | 'soft' | 'firm' | 'heavy', or a vibration pattern in milliseconds. */
+export function buzz(kind = 'tick') {
+  try {
+    const native = nativeHaptics(), [ms, style] = strengths[kind] || [0, 'Medium'];
+    if (native) { native.impact({style: typeof kind === 'string' ? style : 'Medium'}); return; }
+    if (navigator.vibrate) { navigator.vibrate(typeof kind === 'string' ? ms : kind); return; }
+    if (!coarse.matches) return;
+    const beats = Array.isArray(kind) ? Math.ceil(kind.length / 2) : 1;
+    for (let i = 0; i < beats; i++) i ? setTimeout(switchTick, i * 70) : switchTick();
+  } catch {}
+}
 
 /* ---------- Press-and-hold controls ---------- */
 
@@ -185,9 +218,11 @@ export const buzz = pattern => {
  */
 export function initHold(onComplete) {
   let active = null;
-  const cancel = () => {
+  const cancel = done => {
     if (!active) return;
     cancelAnimationFrame(active.frame);
+    if (done !== true) active.el.dispatchEvent(new CustomEvent('holdprogress', {bubbles: true, detail: 0}));
+    active.el.dispatchEvent(new CustomEvent('holdend', {bubbles: true, detail: done === true}));
     active.el.classList.remove('holding');
     active.el.style.removeProperty('--hold');
     active = null;
@@ -199,11 +234,13 @@ export function initHold(onComplete) {
     const length = Number(el.dataset.holdMs) || 1100, start = performance.now();
     active = {el, frame: 0};
     el.classList.add('holding');
+    el.dispatchEvent(new CustomEvent('holdstart', {bubbles: true}));
     const step = now => {
       if (!active || active.el !== el) return;
       const p = Math.min(1, (now - start) / length);
       el.style.setProperty('--hold', p);
-      if (p >= 1) { el.dataset.held = '1'; cancel(); buzz(18); onComplete(el); return; }
+      el.dispatchEvent(new CustomEvent('holdprogress', {bubbles: true, detail: p}));
+      if (p >= 1) { el.dataset.held = '1'; cancel(true); buzz('firm'); onComplete(el); return; }
       active.frame = requestAnimationFrame(step);
     };
     active.frame = requestAnimationFrame(step);

@@ -22,11 +22,12 @@ The command assembles the browser files in `dist/client` for hosting and starts 
 | `dist/js/data.js` | Catalog, worlds, and toy positions |
 | `dist/js/store.js` | Family profiles, wishes, letters, sync, sample checkout, receipts, and delivery flow |
 | `dist/js/app.js`, `dist/js/main.js` | Navigation, the frame around each screen, and start-up |
-| `dist/js/kid.js`, `dist/styles/kid.css` | The child's side: portal, worlds, toy close-ups, wish constellation, letter |
+| `dist/js/codex.js` | The 3D lookbook: cover, live page turning, lighting |
+| `dist/js/kid.js`, `dist/styles/kid.css` | The child's side: lookbook screen, toy close-ups, wish constellation, letter, send-off |
 | `dist/js/parent.js`, `dist/styles/parent.css` | The parent's side: Tonight, wishbook, Santa mail, deliveries, keepsakes |
 | `dist/js/ui.js`, `dist/styles/base.css` | Shared controls, colors, type, sound |
 | `dist/js/aurora.js`, `dist/js/hologram.js` | The animated sky and the spinnable 3D toy |
-| `dist/engines/`, `dist/styles/flight.css` | Live page turning, toy geometry, and the letter flight, animation, and sound |
+| `dist/engines/` | Toy geometry for the 3D toy previews |
 | `dist/assets/` | Artwork, fonts, and other assets used by the app |
 | `dist/server/index.js`, `drizzle/` | Sites request handler and database schema |
 | `build-family.mjs`, `tools/family-preview.mjs` | Local build and preview commands |

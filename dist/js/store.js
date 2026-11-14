@@ -116,7 +116,8 @@ export function updateFamily(change) {
       if (!result.conflict) {
         sync.revision = result.revision;
         if (!sync.online) { sync.online = true; emit({type: 'status'}); }
-        if (sync.writes === 1) { family = doc; remember(); }
+        // Adopt the server's copy only when nothing newer is waiting on this device.
+        if (sync.writes === 1 && !childDirty && !setupDirty) { family = doc; remember(); }
         offlineNoted = false;
         return true;
       }

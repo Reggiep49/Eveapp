@@ -1,10 +1,11 @@
-// The child's side: a portal, three explorable worlds, a wish constellation, and the letter to Santa.
+// The child's side: a book opened and turned by hand, a wish constellation, and the letter to Santa.
 
 import * as store from './store.js';
 import {realms, ART, findGift, activities} from './data.js';
 import {nav, views, actions, go, render} from './app.js';
 import {icon, safe, plural, toyImage, $, $$, reducedMotion, compact, announce, toast, openDialog, closeDialog,
-  sound, chime, blip, whoosh, horn, paper, buzz, sparkFlight} from './ui.js';
+  sound, chime, blip, whoosh, horn, paper, pageLand, thud, coverOpen, starBorn, rise, charge, friction, buzz, sparkFlight} from './ui.js';
+import {createCodex} from './codex.js';
 import {mountHologram, hasModel} from './hologram.js';
 
 const name = () => safe(store.childName());
@@ -12,193 +13,165 @@ const openRealms = () => { const ok = store.curated(); return realms.filter(r =>
 const siblings = () => store.family.profiles.length > 1
   ? `<div class="chips who" role="group" aria-label="Who is exploring?">${store.family.profiles.map(c => `<button class="chip" data-action="profile" data-id="${safe(c.id)}" aria-pressed="${c.id === store.profile().id}">${safe(c.name)}</button>`).join('')}</div>` : '';
 
-/* ---------- Portal ---------- */
+/* ---------- The lookbook: a real book, opened and turned by hand ---------- */
 
-views.portal = {
-  mode: 'kid', warm: 0.25,
-  html() {
-    const open = openRealms(), count = store.curated().length;
-    if (!open.length) return `<section class="kid-empty"><span class="eyebrow">ALMOST READY</span><h1 tabindex="-1">The elves are still setting up.</h1><p>Ask a grown-up to add a few discoveries to your world.</p></section>`;
-    return `<section class="portal">
-      <div class="portal-copy">
-        <span class="eyebrow">A LOOKBOOK FROM THE NORTH POLE</span>
-        <h1 tabindex="-1">${name()},<br><em>it’s open.</em></h1>
-        <p>${plural(open.length, 'world')} inside one book. ${plural(count, 'discovery')} to find.<br>Turn the pages. Make a wish.</p>
-        ${siblings()}
-        <button class="btn glow xl" data-action="enter-world">Open the lookbook ${icon('arrow', 20)}</button>
-        <span class="hint">${icon(sound.on ? 'sound' : 'mute', 15)} ${sound.on ? 'Sound is on' : 'Even more magical with sound on'}</span>
-      </div>
-      <button class="portal-door" data-action="enter-world" aria-label="Open the lookbook">
-        <span class="door-ring r1"></span><span class="door-ring r2"></span><span class="door-ring r3"></span>
-        <span class="door-glass"><img src="assets/realm-${open[0].id}.webp" alt="" draggable="false"></span>
-        <span class="door-label">${open[0].title}</span>
-      </button>
-    </section>`;
-  },
-};
-actions['enter-world'] = () => {
-  const door = $('.portal-door');
-  nav.realm = 0;
-  whoosh();
-  if (!door || reducedMotion.matches) return go('world');
-  door.classList.add('diving');
-  setTimeout(() => go('world', {instant: true}), 620);
-};
 actions.profile = el => {
   if (!store.switchProfile(el.dataset.id)) return;
-  nav.realm = 0; nav.star = null;
-  views[nav.page].mode === 'kid' ? go('portal') : render();
+  nav.realm = 0; nav.star = null; nav.bookOpen = false;
+  views[nav.page].mode === 'kid' ? go('world') : render();
 };
 
-/* ---------- The lookbook: real pages you turn by hand ---------- */
-
-let book = null;
+let book = null, bookToken = null, stopCharge = null;
 const leafOf = t => (t.x < 50 ? 'left' : 'right');
-/** A desktop page is a whole spread; a phone page is one leaf of it. */
+/** A wide screen shows a whole spread; a phone shows one leaf of it. */
 function bookPages() {
   const ok = store.curated().map(g => g.id);
   return openRealms().flatMap(r => compact.matches
     ? ['left', 'right'].map(leaf => ({...r, leaf, toys: r.toys.filter(t => leafOf(t) === leaf)})).filter(p => p.toys.some(t => ok.includes(t.id)))
     : [{...r, leaf: null}]);
 }
-function pageTextures(page) {
-  const ok = store.curated().map(g => g.id);
-  return (page.leaf ? [page.leaf] : ['left', 'right']).map(half => ({src: `assets/realm-${page.id}.webp`, half,
-    hidden: page.toys.filter(t => leafOf(t) === half && !ok.includes(t.id))}));
-}
 
 views.world = {
   mode: 'kid', opaque: true,
   html() {
     const pages = bookPages();
-    if (!pages.length) return views.portal.html();
+    if (!pages.length) return `<section class="kid-empty"><span class="eyebrow">ALMOST READY</span><h1 tabindex="-1">The elves are still setting up.</h1><p>Ask a grown-up to add a few discoveries to your book.</p></section>`;
     nav.realm = Math.max(0, Math.min(nav.realm, pages.length - 1));
-    const page = pages[nav.realm], ok = store.curated().map(g => g.id), wishes = store.profile().wishes;
-    const found = page.toys.filter(t => ok.includes(t.id)), last = nav.realm === pages.length - 1;
-    const box = t => { const k = page.leaf ? 2 : 1, x = page.leaf ? (t.x % 50) * 2 : t.x; return `left:${x - t.w * k / 2}%;top:${t.y - t.h / 2}%;width:${t.w * k}%;height:${t.h}%`; };
-    return `<section class="lookbook" style="--glow:${page.color}">
-      <div class="book-backdrop" aria-hidden="true"><img src="assets/realm-${page.id}-sm.webp" alt=""></div>
-      <header class="world-title">
-        <span class="eyebrow">PAGE ${nav.realm + 1} OF ${pages.length} <i>✦</i> ${plural(found.length, 'discovery')}</span>
-        <h1 tabindex="-1">${page.title}</h1>
-        <p>${page.line}</p>
+    return `<section class="lookbook" id="lookbook" data-state="${nav.bookOpen ? 'open' : 'closed'}" style="--glow:${pages[nav.realm].color}">
+      <div class="book-backdrop" aria-hidden="true"><img id="book-glow" src="assets/realm-${pages[nav.realm].id}-sm.webp" alt=""></div>
+      <canvas id="codex" class="codex" aria-hidden="true"></canvas>
+      <div class="book-flash" aria-hidden="true"></div>
+      <header class="book-head">
+        <div class="cover-head"><span class="eyebrow">A LOOKBOOK FROM THE NORTH POLE</span><h1 tabindex="-1">${name()}, this one <em>is yours.</em></h1></div>
+        <div class="world-title" id="book-title"></div>
       </header>
-      <div class="book-table ${page.leaf ? 'portrait-book' : ''}" id="book-table">
-        <div class="desk-shadow"></div><div class="book-cover-base"></div><div class="gilded-page-stack"></div>
-        <div class="folio-volume" id="folio-volume">
-          <div class="page-fallback" data-leaf="${page.leaf || 'both'}"><img src="assets/realm-${page.id}.webp" alt="${page.title}: an illustrated page with ${found.length} toys to discover" draggable="false">
-            ${page.toys.filter(t => !ok.includes(t.id)).map(t => `<span class="veil" style="${box(t)}"><i>${icon('gift', 22)}</i><b>Still wrapped</b></span>`).join('')}</div>
-          <canvas id="paper-engine" class="paper-engine" aria-label="A storybook. Drag a page across to turn it."></canvas>
-          <div class="book-spine" aria-hidden="true"></div>
-          <div class="discovery-layer">${found.map((t, i) => { const gift = findGift(t.id), on = wishes.includes(t.id);
-            return `<button class="beacon ${on ? 'wished' : ''} ${t.y > 60 ? 'low' : ''}" data-action="toy" data-id="${t.id}" data-key="toy-${t.id}" style="${box(t)};--i:${i}" aria-label="${gift.name}${on ? ', on your wish list' : ''}">
-              <span class="reticle" aria-hidden="true"></span><span class="tag"><i class="pulse">${on ? icon('star', 13) : ''}</i><span>${gift.name}</span></span></button>`; }).join('')}</div>
-          ${nav.realm > 0 ? '<span class="paper-corner left" aria-hidden="true"></span>' : ''}${last ? '' : '<span class="paper-corner right" aria-hidden="true"></span>'}
-        </div>
+      <div class="book-stage" id="book-stage">
+        <div class="marker-layer" id="markers"></div>
+        <button class="seal" id="seal" data-hold data-hold-ms="1100" data-hold-action="open-book" aria-label="Press and hold the star to open the book"><span class="hold-ring" aria-hidden="true"></span></button>
       </div>
-      <nav class="realm-rail" aria-label="Pages">
-        <button class="rail-arrow" data-action="turn" data-index="${nav.realm - 1}" data-key="turn-back" aria-label="Turn back a page" ${nav.realm === 0 ? 'disabled' : ''}>${icon('back', 20)}</button>
-        <div class="rail-middle"><span class="turn-hint">${icon('hand', 16)} Drag a page to turn it</span>
-          <span class="page-dots">${pages.map((p, i) => `<button data-action="turn" data-index="${i}" data-key="dot-${i}" style="--glow:${p.color}" aria-label="Page ${i + 1}: ${p.title}" ${i === nav.realm ? 'aria-current="true"' : ''}></button>`).join('')}</span></div>
-        ${last ? `<button class="rail-arrow go" data-action="go" data-page="wishes" data-key="turn-on" aria-label="See my wishes">${icon('star', 20)}</button>`
-          : `<button class="rail-arrow" data-action="turn" data-index="${nav.realm + 1}" data-key="turn-on" aria-label="Turn the page">${icon('arrow', 20)}</button>`}
-      </nav>
+      <footer class="book-foot">
+        <div class="cover-foot"><p class="cover-hint">${icon('hand', 18)} Press and hold the star</p>${siblings()}</div>
+        <nav class="realm-rail" id="book-rail" aria-label="Pages">
+          <button class="rail-arrow" id="turn-back" data-action="turn" data-step="-1" aria-label="Turn back a page">${icon('back', 20)}</button>
+          <div class="rail-middle"><span class="turn-hint">${icon('hand', 16)} Drag the page to turn it</span><span class="page-dots" id="page-dots"></span></div>
+          <button class="rail-arrow" id="turn-on" data-action="turn" data-step="1" aria-label="Turn the page">${icon('arrow', 20)}</button>
+        </nav>
+      </footer>
     </section>`;
   },
-  mount(root) { book = mountBook(root); },
-  unmount() { book?.destroy(); book = null; },
+  mount(root) { mountBook(root); },
+  unmount() { bookToken = null; book?.destroy(); book = null; stopCharge?.(); friction.stop(); },
 };
 
-function mountBook(root) {
-  const canvas = $('#paper-engine', root), host = $('#folio-volume', root);
-  if (!canvas || typeof EveBookEngine === 'undefined') return null;
-  const single = compact.matches, abort = new AbortController(), opts = {signal: abort.signal};
-  const engine = new EveBookEngine(canvas, {single, reduced: reducedMotion.matches});
-  const usable = () => engine.ready && !engine.failed;
-  let gesture = null, turning = false, alive = true, suppress = false;
+async function mountBook(root) {
+  const pages = bookPages(), shell = $('#lookbook', root);
+  if (!shell) return;
+  const stage = $('#book-stage', root), spread = !compact.matches, ok = store.curated().map(g => g.id);
+  const token = bookToken = {};
+  const hidden = (p, half) => p.toys.filter(t => leafOf(t) === half && !ok.includes(t.id));
+  // Where each toy sits on its page: across, down, and how big.
+  const spots = (p, side) => p.toys.filter(t => ok.includes(t.id) && (p.leaf ? side === 'right' : leafOf(t) === side))
+    .map(t => ({t, u: (t.x % 50) / 50, v: t.y / 100, w: t.w / 50, h: t.h / 100}));
+  const abort = new AbortController();
 
-  engine.setPages(pageTextures(bookPages()[nav.realm])).then(loaded => {
-    if (!alive) return;
-    host.classList.toggle('engine-ready', loaded);
-    // Warm the neighbouring pages so the first turn is as smooth as the rest.
-    if (loaded) for (const p of bookPages()) for (const tex of pageTextures(p)) engine.texture(tex).catch(() => {});
-  });
-
-  const arrive = index => { nav.realm = index; turning = false; render(); $('#app').classList.add('warp-in'); const p = bookPages()[index]; if (p) announce(`Page ${index + 1}. ${p.title}.`); };
-  const land = () => { buzz([16, 34, 26]); blip(420); };
-
-  host.addEventListener('pointerdown', event => {
-    if (turning || event.button > 0) return;
-    gesture = {x: event.clientX, y: event.clientY, id: event.pointerId, rect: host.getBoundingClientRect(), progress: 0, notch: 0, active: false, lastX: event.clientX, lastT: performance.now(), speed: 0};
-  }, opts);
-  host.addEventListener('pointermove', event => {
-    const g = gesture; if (!g) return;
-    const dx = event.clientX - g.x, dy = event.clientY - g.y;
-    if (!g.active && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-      const direction = dx < 0 ? 1 : -1, target = nav.realm + direction;
-      if (target < 0 || target >= bookPages().length) { gesture = null; host.classList.remove('nope'); void host.offsetWidth; host.classList.add('nope'); buzz(30); return; }
-      Object.assign(g, {active: true, direction, target});
-      turning = suppress = true;
-      host.setPointerCapture(g.id); host.classList.add('turning');
-      if (usable()) engine.prepare(direction, pageTextures(bookPages()[target])).then(() => { if (gesture === g && alive) engine.setProgress(g.progress); });
-      paper(); buzz(10); // the page lifts off the stack
-    }
-    if (!g.active) return;
-    event.preventDefault();
-    g.progress = Math.max(0, Math.min(0.98, -dx * g.direction / (g.rect.width * (single ? 0.9 : 0.58))));
-    if (usable()) engine.setProgress(g.progress);
-    // Paper has grain: a fine tick each time the page bends a little further.
-    const notch = Math.floor(g.progress / 0.11);
-    if (notch !== g.notch) { g.notch = notch; buzz(4); }
-    const now = performance.now();
-    if (now - g.lastT > 16) { g.speed = (event.clientX - g.lastX) / (now - g.lastT); g.lastX = event.clientX; g.lastT = now; }
-  }, opts);
-  const release = () => {
-    const g = gesture; gesture = null;
-    if (!g?.active) return;
-    const flick = -g.speed * g.direction > 0.45 && g.progress > 0.06;
-    const complete = g.progress > 0.3 || flick;
-    const done = () => { if (!alive) return; if (complete) { land(); arrive(g.target); } else { turning = false; host.classList.remove('turning'); buzz(6); } };
-    if (usable()) engine.animate(complete ? 1 : 0, done); else done();
-    setTimeout(() => { suppress = false; }, 80);
-  };
-  host.addEventListener('pointerup', release, opts);
-  host.addEventListener('pointercancel', () => { const g = gesture; gesture = null; if (!g?.active) return; turning = false; host.classList.remove('turning'); if (usable()) engine.setProgress(0); suppress = false; }, opts);
-  // Dragging a page must not open the toy the finger started on.
-  host.addEventListener('click', event => { if (suppress) { event.preventDefault(); event.stopPropagation(); suppress = false; } }, {...opts, capture: true});
-  document.addEventListener('keydown', event => {
-    if ($('#dialog').open || event.target.matches('input, textarea, select')) return;
-    if (event.key === 'ArrowRight') turnTo(nav.realm + 1);
-    if (event.key === 'ArrowLeft') turnTo(nav.realm - 1);
-  }, opts);
-
-  async function turnTo(index) {
-    const pages = bookPages();
-    if (turning || index === nav.realm || index < 0 || index >= pages.length) return;
-    const direction = index > nav.realm ? 1 : -1;
-    turning = true; host.classList.add('turning');
-    paper(); buzz(10);
-    if (!usable()) { host.classList.add(direction > 0 ? 'fallback-forward' : 'fallback-back'); return setTimeout(() => { if (alive) { land(); arrive(index); } }, reducedMotion.matches ? 1 : 520); }
-    try {
-      await engine.prepare(direction, pageTextures(pages[index]));
-      if (!alive) return;
-      // One soft tick mid-air, then the page lands.
-      setTimeout(() => { if (alive && turning) buzz(4); }, 380);
-      engine.animate(1, () => { if (alive) { land(); arrive(index); } });
-    } catch { arrive(index); }
+  function paint() {
+    if (token !== bookToken || !book || book.mode !== 'open') return;
+    const page = pages[book.index], wishes = store.profile().wishes, box = stage.getBoundingClientRect(), cv = $('#codex').getBoundingClientRect();
+    const found = page.toys.filter(t => ok.includes(t.id)), last = book.index === pages.length - 1;
+    shell.style.setProperty('--glow', page.color);
+    $('#book-glow').src = `assets/realm-${page.id}-sm.webp`;
+    $('#book-title').innerHTML = `<span class="eyebrow">PAGE ${book.index + 1} OF ${pages.length} <i>✦</i> ${plural(found.length, 'discovery')}</span><h2>${page.title}</h2><p>${page.line}</p>`;
+    $('#markers').innerHTML = ['left', 'right'].flatMap(side => spots(page, side).map(({t, u, v, w, h}, i) => {
+      const [x0, y0] = book.project(side, u - w / 2, v - h / 2), [x1, y1] = book.project(side, u + w / 2, v + h / 2);
+      const gift = findGift(t.id), on = wishes.includes(t.id);
+      return `<button class="beacon ${on ? 'wished' : ''}" data-action="toy" data-id="${t.id}" style="left:${x0 - (box.left - cv.left)}px;top:${y0 - (box.top - cv.top)}px;width:${x1 - x0}px;height:${y1 - y0}px;--i:${i}" aria-label="${gift.name}${on ? ', on your wish list' : ''}">
+        <span class="reticle" aria-hidden="true"></span><i class="spark">${icon('star', 12)}</i><span class="tag">${gift.name}</span></button>`;
+    })).join('');
+    $('#page-dots').innerHTML = pages.map((p, i) => `<button data-action="turn" data-index="${i}" style="--glow:${p.color}" aria-label="Page ${i + 1}: ${p.title}" ${i === book.index ? 'aria-current="true"' : ''}></button>`).join('');
+    $('#turn-back').disabled = book.index === 0;
+    const forward = $('#turn-on');
+    forward.classList.toggle('go', last);
+    forward.innerHTML = icon(last ? 'star' : 'arrow', 20);
+    forward.setAttribute('aria-label', last ? 'See my wishes' : 'Turn the page');
+    Object.assign(forward.dataset, last ? {action: 'go', page: 'wishes'} : {action: 'turn', step: '1'});
   }
-  return {turnTo, destroy() { alive = false; abort.abort(); engine.destroy(); }};
-}
-actions.turn = el => book?.turnTo(Number(el.dataset.index));
+  const placeSeal = () => {
+    if (!book) return;
+    const box = stage.getBoundingClientRect(), cv = $('#codex').getBoundingClientRect(), [cx, cy] = book.project('right', 0.5, 420 / 1152), [ex] = book.project('right', 0.5 + 150 / 1024, 420 / 1152);
+    Object.assign($('#seal').style, {left: `${cx - (box.left - cv.left)}px`, top: `${cy - (box.top - cv.top)}px`, width: `${(ex - cx) * 2}px`});
+  };
 
-/** After a toy is closed, update its marker in place so the book is not redrawn. */
+  const made = await createCodex($('#codex', root), stage, {
+    spread, reduced: reducedMotion.matches, start: nav.realm, opened: !!nav.bookOpen,
+    name: store.childName(), year: new Date().getFullYear(),
+    line: `${plural(openRealms().length, 'world')} · ${plural(store.curated().length, 'discovery')}`,
+    openings: pages.map(p => spread ? {src: `assets/realm-${p.id}.webp`, leftHidden: hidden(p, 'left'), rightHidden: hidden(p, 'right')} : {src: `assets/realm-${p.id}.webp`, half: p.leaf, hidden: hidden(p, p.leaf)}),
+    hot: (i, side) => spots(pages[i], side).map(({u, v}) => [u, 1 - v, 0.9]),
+    on: {
+      layout() { placeSeal(); paint(); },
+      track() { placeSeal(); },
+      settle() { thud(0.8); buzz('firm'); },
+      riffle() { paper(); buzz('tick'); },
+      open() { shell.dataset.state = 'open'; shell.classList.add('flash'); chime(0.8); buzz('firm'); announce(`The book is open. ${pages[book.index].title}.`); },
+      page(i) { nav.realm = i; shell.classList.remove('arrived', 'turning'); void shell.offsetWidth; shell.classList.add('arrived'); paint(); announce(`Page ${i + 1} of ${pages.length}. ${pages[i].title}.`); },
+      lift() { shell.classList.add('turning'); paper(); buzz('soft'); },
+      grain() { buzz('tick'); },
+      drag(speed) { friction.set(speed); },
+      land() { pageLand(); buzz('firm'); },
+      release(completes) { if (!completes) shell.classList.remove('turning'); },
+      rest() { shell.classList.remove('turning'); buzz('tick'); },
+      refuse() { buzz('heavy'); shell.classList.remove('nope'); void shell.offsetWidth; shell.classList.add('nope'); },
+    },
+  });
+  if (token !== bookToken) { made?.destroy(); return; }
+  if (!made) { shell.dataset.state = 'flat'; return flatBook(shell, pages, spots); }
+  book = made;
+  shell.classList.add('ready');
+  placeSeal(); paint();
+
+  const seal = $('#seal');
+  seal.addEventListener('holdstart', () => { stopCharge?.(); stopCharge = charge(); buzz('soft'); }, {signal: abort.signal});
+  seal.addEventListener('holdprogress', e => { book?.hold(e.detail); if (e.detail && Math.round(e.detail * 100) % 20 === 0) buzz('tick'); }, {signal: abort.signal});
+  seal.addEventListener('holdend', () => { stopCharge?.(); stopCharge = null; }, {signal: abort.signal});
+  document.addEventListener('keydown', e => {
+    if (token !== bookToken) return abort.abort();
+    if ($('#dialog').open || e.target.matches('input, textarea, select') || book?.mode !== 'open') return;
+    if (e.key === 'ArrowRight') book.turnTo(book.index + 1);
+    if (e.key === 'ArrowLeft') book.turnTo(book.index - 1);
+  }, {signal: abort.signal});
+}
+export function openBook() {
+  if (!book || book.mode !== 'closed') return;
+  nav.bookOpen = true;
+  $('#lookbook').dataset.state = 'opening';
+  book.open(); coverOpen(); buzz('heavy');
+}
+actions.turn = el => {
+  if (!book) return;
+  book.turnTo(el.dataset.index !== undefined ? Number(el.dataset.index) : book.index + Number(el.dataset.step));
+};
+
+/** Without WebGL the book still works: flat pictures and the same buttons, just no paper. */
+function flatBook(shell, pages, spots) {
+  nav.bookOpen = true;
+  const show = () => {
+    const page = pages[nav.realm], wishes = store.profile().wishes;
+    $('#book-title').innerHTML = `<span class="eyebrow">PAGE ${nav.realm + 1} OF ${pages.length}</span><h2>${page.title}</h2><p>${page.line}</p>`;
+    $('#markers').innerHTML = `<div class="flat-page ${page.leaf || 'both'}"><img src="assets/realm-${page.id}.webp" alt="">${['left', 'right'].flatMap(side => spots(page, side).map(({t, u, v, w, h}) => {
+      const k = page.leaf ? 1 : 0.5, x = (page.leaf ? u : (side === 'left' ? u : 1 + u) * 0.5);
+      return `<button class="beacon ${wishes.includes(t.id) ? 'wished' : ''}" data-action="toy" data-id="${t.id}" style="left:${(x - w * k / 2) * 100}%;top:${(v - h / 2) * 100}%;width:${w * k * 100}%;height:${h * 100}%" aria-label="${findGift(t.id).name}"><i class="spark">${icon('star', 12)}</i><span class="tag">${findGift(t.id).name}</span></button>`;
+    })).join('')}</div>`;
+    $('#page-dots').innerHTML = pages.map((p, i) => `<button data-action="turn" data-index="${i}" aria-label="Page ${i + 1}" ${i === nav.realm ? 'aria-current="true"' : ''}></button>`).join('');
+    $('#turn-back').disabled = nav.realm === 0; $('#turn-on').disabled = nav.realm === pages.length - 1;
+  };
+  book = {mode: 'open', get index() { return nav.realm; }, turnTo(i) { if (i < 0 || i >= pages.length) return; nav.realm = i; show(); }, hold() {}, open() {}, destroy() {}, project: () => [0, 0]};
+  show();
+}
+
+/** After a toy is closed, update its marker in place so the book is not disturbed. */
 function refreshBeacons() {
   const wishes = store.profile().wishes;
-  $$('.discovery-layer .beacon').forEach(b => {
-    const on = wishes.includes(b.dataset.id);
-    b.classList.toggle('wished', on);
-    b.querySelector('.pulse').innerHTML = on ? icon('star', 13) : '';
-  });
+  $$('#markers .beacon').forEach(b => b.classList.toggle('wished', wishes.includes(b.dataset.id)));
 }
 
 /* ---------- A toy, up close ---------- */
@@ -404,56 +377,145 @@ export async function seal() {
   if (!await sealed.delivered) toast('Your letter is safe on this device. A grown-up can send it again from Santa mail.', 'warn');
 }
 
-/* ---------- The journey ---------- */
+/* ---------- Sending: fold it, seal it, flick it into the sky ---------- */
 
-let flight = null;
-views.sending = {
-  mode: 'kid', bare: true, opaque: true,
-  html() {
-    return `<section class="northstar-cinema" id="northstar-cinema" data-act="gather">
-      <div class="cinema-worlds" aria-hidden="true"><img class="film-workshop" src="assets/realm-workshop.webp" alt=""><img class="film-village" src="assets/village.webp" alt=""><img class="film-sky" src="assets/aurora-sky.webp" alt=""></div>
-      <div class="cinema-shade"></div><canvas aria-hidden="true"></canvas><div class="aurora-curtain" aria-hidden="true"></div>
-      <div class="cinematic-letter" id="cinematic-letter"><div class="letter-radiance"></div><div class="envelope-body"><span class="envelope-address">To Santa</span><small>THE NORTH POLE</small><span class="envelope-from">With love, ${name()}</span><div class="envelope-left"></div><div class="envelope-right"></div><div class="envelope-bottom"></div><div class="envelope-flap"></div><span class="envelope-wax">✦</span></div><div class="letter-wings wing-left"></div><div class="letter-wings wing-right"></div></div>
-      <div class="portal-halo" id="portal-halo" aria-hidden="true"><i></i><i></i><i></i></div><div class="cinema-bloom" aria-hidden="true"></div>
-      <div class="cinema-caption"><span class="eyebrow" id="flight-kicker">EVERY WISH BEGINS WITH YOU</span><h1 id="flight-title" tabindex="-1">A little belief.<br>An extraordinary journey.</h1><p id="flight-subtitle">Your wishes are waking up the magic.</p></div>
-      <div class="flight-progress" aria-hidden="true"><i></i><span>YOUR WISHES</span><span>THE NORTH POLE</span></div>
-      <div class="cinema-controls"><button class="hud-btn" data-action="sound" aria-pressed="${sound.on}" aria-label="${sound.on ? 'Turn sound off' : 'Turn sound on'}">${icon(sound.on ? 'sound' : 'mute', 18)}</button>
-        <button class="btn ghost sm" data-action="go" data-page="sent">Skip ${icon('arrow', 15)}</button></div>
-    </section>`;
-  },
-  mount(root) {
-    const letter = store.activeLetter();
-    flight = new NorthstarFlight($('#northstar-cinema', root), {
-      name: store.childName(), wishes: (letter?.gifts || []).map(findGift).filter(Boolean).map(g => g.name),
-      sound: () => sound.on, reduced: reducedMotion.matches, onDone: () => go('sent'),
-    });
-  },
-  unmount() { flight?.destroy(); flight = null; },
-};
-export const flightSoundChanged = () => {
-  flight?.soundChanged();
-  const b = $('.cinema-controls [data-action="sound"]');
-  if (b) { b.innerHTML = icon(sound.on ? 'sound' : 'mute', 18); b.setAttribute('aria-pressed', sound.on); }
-};
-
-views.sent = {
-  mode: 'kid', hud: false, warm: 0.8,
-  html() {
-    const letter = store.activeLetter(), items = (letter?.gifts || []).map(findGift).filter(Boolean);
-    return `<section class="sent">
-      <div class="sent-seal" aria-hidden="true"><i></i><i></i><span>✦</span></div>
-      <span class="eyebrow">NORTH POLE <i>✦</i> SPECIAL DELIVERY</span>
-      <h1 tabindex="-1">${name()}, you made the sky<br>a little <em>brighter.</em></h1>
-      <p>Santa has your letter. Every wish. Every word.</p>
-      <div class="sent-wishes">${items.map((g, i) => `<figure style="--i:${i}" class="${letter.favorite === g.id ? 'north' : ''}">${toyImage(g, 84)}<figcaption>${g.name}</figcaption></figure>`).join('')}</div>
-      <blockquote>“Leave the rest to me.”<cite>With love, Santa</cite></blockquote>
-      <div class="sent-actions">
-        <button class="btn ghost" data-action="go" data-page="sending">${icon('play', 16)} Watch it fly again</button>
-        <button class="btn glow" data-action="go" data-page="world">Keep exploring ${icon('arrow', 18)}</button>
+let sendoff = null;
+function sendoffHtml(done) {
+  const letter = store.activeLetter(), items = (letter?.gifts || []).map(findGift).filter(Boolean);
+  const note = (letter?.note || '').replace(/^Dear Santa,?\s*/i, '') || 'Here are a few things I have been dreaming about.';
+  const when = letter ? new Date(letter.date).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'}) : '';
+  return `<section class="sendoff" id="sendoff" data-step="${done ? 'done' : 'gather'}">
+    <canvas id="send-sky" aria-hidden="true"></canvas>
+    <div class="send-top">
+      ${done ? '' : `<button class="btn ghost sm" data-action="skip-send">Skip ${icon('arrow', 15)}</button>`}
+      <button class="hud-btn" data-action="sound" aria-pressed="${sound.on}" aria-label="${sound.on ? 'Turn sound off' : 'Turn sound on'}">${icon(sound.on ? 'sound' : 'mute', 18)}</button>
+      <button class="hud-btn hold" data-hold data-hold-action="grown-ups" aria-label="Grown-ups: press and hold">${icon('lock', 18)}<span class="hold-ring" aria-hidden="true"></span></button>
+    </div>
+    <div class="send-stage" aria-hidden="${done}">
+      <div class="fold-letter" id="fold-letter">
+        <div class="fl-panel fl-top"><div class="fl-face"><span class="fl-dear">Dear Santa,</span></div></div>
+        <div class="fl-panel fl-mid"><div class="fl-face"><p>${safe(note.length > 150 ? note.slice(0, 147) + '…' : note)}</p></div></div>
+        <div class="fl-panel fl-bot"><div class="fl-face"><span class="fl-sign">With love, <em>${name()}</em></span><span class="fl-wishes">${items.slice(0, 6).map(g => toyImage(g, 40)).join('')}</span></div></div>
+        <span class="fl-seal" aria-hidden="true">✦</span>
+        <span class="fl-to" aria-hidden="true">To Santa<small>THE NORTH POLE</small></span>
       </div>
-      <span class="hint">${icon('lock', 14)} Grown-ups: press and hold the lock to come back.</span>
-    </section>`;
-  },
+    </div>
+    <div class="send-prompt" id="send-prompt"><span class="chevrons" aria-hidden="true"><i></i><i></i><i></i></span><b>Flick it up to the North Pole</b>
+      <button class="btn ghost sm" data-action="launch">or tap to send</button></div>
+    <div class="new-star" aria-hidden="true"><i></i><i></i><b></b></div>
+    <div class="send-final" aria-live="polite">
+      <span class="eyebrow">RECEIVED <i>✦</i> THE NORTH POLE${when ? ` <i>✦</i> ${when}` : ''}</span>
+      <h1 tabindex="-1">It’s there, <em>${name()}.</em></h1>
+      <p>There is a new star over the North Pole tonight. Santa has every wish and every word.</p>
+      <div class="sent-wishes">${items.map((g, i) => `<figure style="--i:${i}" class="${letter.favorite === g.id ? 'north' : ''}">${toyImage(g, 84)}<figcaption>${g.name}</figcaption></figure>`).join('')}</div>
+      <div class="postmark-stamp" aria-hidden="true"><span>NORTH POLE</span><b>RECEIVED</b><span>${letter ? new Date(letter.date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}).toUpperCase() : ''}</span></div>
+      <div class="sent-actions">
+        <button class="btn ghost" data-action="go" data-page="sending">${icon('play', 16)} Watch it again</button>
+        <button class="btn glow" data-action="go" data-page="world">Back to my book ${icon('arrow', 18)}</button>
+      </div>
+      <span class="hint">${icon('lock', 14)} Grown-ups: press and hold the lock.</span>
+    </div>
+  </section>`;
+}
+
+function runSendoff(root, done) {
+  const el = $('#sendoff', root), canvas = $('#send-sky', root), letter = $('#fold-letter', root), ctx = canvas.getContext('2d');
+  const s = {alive: true, w: 0, h: 0, speed: 0.03, speedTarget: 0.03, bloom: 0, last: performance.now(), trail: [], timers: [], launched: done};
+  const stars = Array.from({length: compact.matches ? 110 : 190}, () => ({x: Math.random(), y: Math.random(), z: 0.3 + Math.random() * 1.2, p: Math.random() * 6.28}));
+  const size = () => { const d = Math.min(devicePixelRatio || 1, 2); s.w = canvas.clientWidth; s.h = canvas.clientHeight; canvas.width = s.w * d; canvas.height = s.h * d; ctx.setTransform(d, 0, 0, d, 0, 0); };
+  const observer = new ResizeObserver(size); observer.observe(canvas); size();
+  const at = (ms, fn) => s.timers.push(setTimeout(() => { if (s.alive) fn(); }, ms));
+  const step = name => { el.dataset.step = name; };
+
+  function frame(now) {
+    if (!s.alive) return;
+    const dt = Math.min(0.04, (now - s.last) / 1000); s.last = now;
+    s.speed += (s.speedTarget - s.speed) * (1 - Math.exp(-dt * 3));
+    s.bloom = Math.max(0, s.bloom - dt * 0.9);
+    ctx.clearRect(0, 0, s.w, s.h);
+    ctx.lineCap = 'round';
+    for (const st of stars) {
+      const before = st.y; st.y = (st.y + s.speed * st.z * dt) % 1;
+      const x = st.x * s.w, y = st.y * s.h, tw = 0.45 + 0.4 * Math.sin(now * 0.002 + st.p);
+      ctx.strokeStyle = `rgba(255,${236 - st.z * 20 | 0},${200 - st.z * 30 | 0},${tw * Math.min(1, 0.5 + st.z * 0.4)})`;
+      ctx.lineWidth = 0.8 + st.z;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, st.y < before ? y : y - Math.max(0.5, s.speed * st.z * s.h * 0.05)); ctx.stroke();
+    }
+    if (el.dataset.step === 'fly') {
+      const r = letter.getBoundingClientRect();
+      for (let i = 0; i < 5; i++) s.trail.push({x: r.left + r.width / 2 + (Math.random() - 0.5) * r.width * 0.5, y: r.bottom - 6, vx: (Math.random() - 0.5) * 40, vy: 60 + Math.random() * 160, life: 1});
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    s.trail = s.trail.filter(p => p.life > 0);
+    for (const p of s.trail) {
+      p.life -= dt * 1.1; p.x += p.vx * dt; p.y += p.vy * dt;
+      ctx.fillStyle = `rgba(255,${200 + 40 * p.life | 0},${120 + 80 * p.life | 0},${Math.max(0, p.life) * 0.8})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 1 + p.life * 2.6, 0, 6.283); ctx.fill();
+    }
+    if (s.bloom > 0) {
+      const cx = s.w / 2, cy = s.h * 0.24, g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(s.w, s.h) * 0.75);
+      g.addColorStop(0, `rgba(255,244,214,${s.bloom})`); g.addColorStop(0.25, `rgba(255,214,140,${s.bloom * 0.45})`); g.addColorStop(1, 'rgba(255,200,120,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, s.w, s.h);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function launch(from = 0) {
+    if (s.launched) return;
+    s.launched = true;
+    letter.style.setProperty('--from', `${from}px`);
+    step('fly'); s.speedTarget = 2.6; rise(); buzz('heavy');
+    at(1150, () => { step('star'); s.bloom = 1; s.speedTarget = 0.03; starBorn(); buzz([30, 60, 50]); });
+    at(2500, () => { step('done'); $('.send-final h1', el)?.focus({preventScroll: true}); });
+    at(3500, () => { thud(0.7); buzz('firm'); });
+  }
+  if (!done) {
+    if (reducedMotion.matches) { s.launched = true; step('done'); }
+    else {
+      whoosh();
+      at(1000, () => { step('fold'); paper(); buzz('soft'); });
+      at(1450, () => { paper(); buzz('soft'); });
+      at(2150, () => { step('seal'); thud(0.9); buzz('heavy'); });
+      at(2900, () => { if (!s.launched) step('ready'); });
+      at(11000, () => launch());
+      // The letter follows the finger; let go with an upward flick and it is away.
+      let drag = null;
+      letter.addEventListener('pointerdown', e => { if (el.dataset.step !== 'ready') return; drag = {y: e.clientY, dy: 0, t: performance.now(), lastY: e.clientY, v: 0}; letter.setPointerCapture(e.pointerId); letter.classList.add('held'); buzz('soft'); });
+      letter.addEventListener('pointermove', e => {
+        if (!drag) return;
+        const now = performance.now(); drag.dy = e.clientY - drag.y;
+        if (now - drag.t > 10) { drag.v = (e.clientY - drag.lastY) / (now - drag.t); drag.lastY = e.clientY; drag.t = now; }
+        letter.style.setProperty('--drag', `${drag.dy < 0 ? drag.dy : drag.dy * 0.25}px`);
+      });
+      const drop = () => {
+        if (!drag) return;
+        const {dy, v} = drag; drag = null; letter.classList.remove('held');
+        if (dy < -90 || v < -0.55) launch(dy); else letter.style.setProperty('--drag', '0px');
+      };
+      letter.addEventListener('pointerup', drop); letter.addEventListener('pointercancel', drop);
+    }
+  }
+  return {launch, skip() { s.timers.forEach(clearTimeout); s.launched = true; step('done'); }, destroy() { s.alive = false; s.timers.forEach(clearTimeout); observer.disconnect(); }};
+}
+views.sending = {
+  mode: 'kid', bare: true, warm: 1,
+  html: () => sendoffHtml(false),
+  mount(root) { sendoff = runSendoff(root, false); },
+  unmount() { sendoff?.destroy(); sendoff = null; },
+};
+views.sent = {
+  mode: 'kid', bare: true, warm: 1,
+  html: () => sendoffHtml(true),
+  mount(root) { sendoff = runSendoff(root, true); },
+  unmount() { sendoff?.destroy(); sendoff = null; },
+};
+actions.launch = () => sendoff?.launch();
+actions['skip-send'] = () => sendoff?.skip();
+export const flightSoundChanged = () => {
+  const b = $('.send-top [data-action="sound"]');
+  if (b) { b.innerHTML = icon(sound.on ? 'sound' : 'mute', 18); b.setAttribute('aria-pressed', sound.on); }
 };
 
 /* ---------- Christmas morning ---------- */
