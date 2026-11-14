@@ -7,8 +7,9 @@ import worker from '../dist/server/index.js';
 
 const db = new DatabaseSync(':memory:');
 db.exec(readFileSync('drizzle/0000_family.sql', 'utf8'));
-const root = resolve('dist/client');
-const types = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp','.svg':'image/svg+xml'};
+// Serve the source folder directly so edits show up on refresh (the worker and build output stay private).
+const root = resolve('dist');
+const types = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp','.svg':'image/svg+xml','.woff2':'font/woff2','.json':'application/json','.txt':'text/plain'};
 const env = {
   DB: {prepare(sql) {return {bind(...values) {
     const stmt = db.prepare(sql);
@@ -16,7 +17,7 @@ const env = {
   }};}},
   ASSETS: {async fetch(request) {
     const path = resolve(root, '.' + (new URL(request.url).pathname === '/' ? '/index.html' : new URL(request.url).pathname));
-    if (!path.startsWith(root + sep)) return new Response(null,{status:404});
+    if (!path.startsWith(root + sep) || /^[\\/](server|client)([\\/]|$)/.test(path.slice(root.length))) return new Response(null,{status:404});
     try {return new Response(await readFile(path),{headers:{'Content-Type':types[extname(path)] || 'application/octet-stream'}});}
     catch {return new Response(null,{status:404});}
   }}
