@@ -15,8 +15,9 @@ Two sides, one sky.
 
 | Before | Now |
 | --- | --- |
-| A book cover you click | A leather book that drifts in and settles; press and hold the gold star to open it, the cover swings over and the first leaves riffle past |
-| A page that rotated as one stiff sheet | Paper that peels from wherever it is grabbed, bends around a cylinder, lags the finger slightly like something with weight, and can be caught mid-air |
+| A book cover you click | An overture: a line of story, then a leather book falls in from far away and lands. Press and hold the gold star and it builds (the book trembles, light leaks from its edges, snow is drawn in, the sound climbs), there is a beat of silence, then it bursts open in light and sparks and the first leaves riffle past |
+| Still pictures | A living scene: snow falls in depth and swirls when a page sweeps past, lanterns and firelight in the paintings shimmer, and the room behind the book drifts and flickers |
+| A page that rotated as one stiff sheet | Paper that peels from wherever it is grabbed, bends around a cylinder, lags the finger slightly like something with weight, and can be caught mid-air. Every sheet is printed on both sides; on a phone the turned page lands as the next page and the view follows it across |
 | "+" pins covering the pictures | Toys glow softly in the picture itself; names peek out when a page lands, then leave the art clean |
 | A 24-second film after sending | About seven seconds, with the child folding, sealing and flicking the letter; it ends on one new star and a "Received" postmark |
 | Sound off, no touch feedback | Paper hiss that follows the drag speed, a pat when a page lands, a climbing tone while the star is held; vibration where the device allows it |
@@ -43,6 +44,7 @@ No build step and no packages. `dist/index.html` loads four stylesheets and one 
 | `dist/js/parent.js` | Tonight, wishbook, Santa mail, deliveries, keepsakes |
 | `dist/js/ui.js` | Icons, dialogs, toasts, sound, press-and-hold |
 | `dist/js/aurora.js` | The WebGL sky (falls back to a still gradient) |
+| `dist/js/atmosphere.js` | Falling snow and sparks |
 | `dist/js/hologram.js` | The spinnable toy projection |
 | `dist/engines/` | Carried over unchanged: toy geometry |
 | `dist/styles/` | `base` (tokens and controls), `parent`, `kid` |

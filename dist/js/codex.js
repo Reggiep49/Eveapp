@@ -62,7 +62,7 @@ precision mediump float;
 uniform sampler2D uFront; uniform sampler2D uBack;
 uniform vec3 uLight; uniform vec3 uTint; uniform float uGutter; uniform float uFoil; uniform float uSheen; uniform float uAlpha;
 uniform vec4 uShadow; uniform float uShadowY; uniform float uShadowK;
-uniform vec3 uHot[6]; uniform float uHotK; uniform float uTime; uniform float uFlat;
+uniform vec3 uHot[6]; uniform float uHotK; uniform float uTime; uniform float uFlat; uniform float uLife;
 varying vec2 vUv; varying vec3 vN; varying vec3 vP;
 void main(){
   bool front = gl_FrontFacing;
@@ -91,6 +91,15 @@ void main(){
       if (h.z > 0.) { vec2 dv = (vUv - h.xy) * vec2(1., 1.1256); float dd = dot(dv, dv);
         col += base.rgb * uHotK * h.z * exp(-dd * 46.) * (0.30 + 0.22 * sin(uTime * 2.1 + float(i) * 1.7)); }
     }
+  }
+  if (uLife > 0.) {
+    // Lanterns, fairy lights and firelight: the bright warm parts of the painting breathe and flicker.
+    float lum = max(base.r, max(base.g, base.b)), warm = smoothstep(.02, .28, base.r - base.b);
+    float m = smoothstep(.66, .97, lum) * warm;
+    vec2 q = front ? vUv : vec2(1. - vUv.x, vUv.y);
+    float n = sin(uTime * 2.7 + q.x * 61. + q.y * 47.) * sin(uTime * 1.9 + q.x * 23. - q.y * 71.);
+    col += base.rgb * m * (.24 * n + .09 * sin(uTime * 8.3 + q.y * 130. + q.x * 40.)) * uLife;
+    col += base.rgb * .035 * sin(uTime * .8 + q.x * 3. + q.y * 2.) * uLife;
   }
   if (uFoil > 0.) {
     float foil = smoothstep(.10, .34, base.r - base.b);
@@ -214,7 +223,7 @@ export async function createCodex(canvas, stage, options) {
   try { gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG)); gl.linkProgram(program); } catch { return null; }
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
   gl.useProgram(program);
-  const U = {}; for (const n of ['uMVP', 'uRect', 'uZ', 'uFold', 'uFoldY', 'uHinge', 'uFront', 'uBack', 'uLight', 'uTint', 'uGutter', 'uFoil', 'uSheen', 'uAlpha', 'uShadow', 'uShadowY', 'uShadowK', 'uHot', 'uHotK', 'uTime', 'uFlat']) U[n] = gl.getUniformLocation(program, n);
+  const U = {}; for (const n of ['uMVP', 'uRect', 'uZ', 'uFold', 'uFoldY', 'uHinge', 'uFront', 'uBack', 'uLight', 'uTint', 'uGutter', 'uFoil', 'uSheen', 'uAlpha', 'uShadow', 'uShadowY', 'uShadowK', 'uHot', 'uHotK', 'uTime', 'uFlat', 'uLife']) U[n] = gl.getUniformLocation(program, n);
 
   // One grid, reused for every sheet. Counter-clockwise from above, so gl_FrontFacing means "printed side".
   const NX = 72, NY = 40, verts = [], idx = [];
@@ -248,19 +257,31 @@ export async function createCodex(canvas, stage, options) {
   const right = [], left = [];
   options.openings.forEach((o, i) => {
     const img = images[o.src];
-    if (spread) { left[i] = tex(pageCanvas(img, 'left', o.leftHidden)); right[i] = tex(pageCanvas(img, 'right', o.rightHidden)); }
-    else { left[i] = T.paper; right[i] = tex(pageCanvas(img, o.half, o.hidden)); }
+    left[i] = tex(pageCanvas(img, 'left', o.leftHidden)); right[i] = tex(pageCanvas(img, 'right', o.rightHidden));
   });
   const count = right.length;
 
   /* ----- State ----- */
+  // A narrow screen looks at one page of the spread at a time; the camera crosses the gutter and follows turning sheets.
+  const start = clamp(options.start || 0, 0, (spread ? count : count * 2) - 1);
   const s = {
-    cur: clamp(options.start || 0, 0, count - 1), mode: options.opened ? 'open' : 'closed', alive: true, time: 0, last: performance.now(),
-    w: 0, h: 0, mvp: ident(), inv: ident(), baseVP: ident(), camX: spread && !options.opened ? 0.5 : (spread ? 0 : 0.5),
+    cur: spread ? start : Math.floor(start / 2), side: spread || start % 2 ? 'right' : 'left', panning: false, goalPage: null, mode: options.opened ? 'open' : 'closed', alive: true, time: 0, last: performance.now(),
+    w: 0, h: 0, mvp: ident(), inv: ident(), baseVP: ident(), camX: 0.5,
     arrive: options.opened || reduced ? 1 : 0, hinge: 0, held: 0, sheen: 0, hotK: options.opened ? 1 : 0, tilt: [0, 0], tiltTarget: [0, 0],
-    turn: null, queue: [], riffle: null, leftTex: null, rightTex: null, glow: 0,
+    turn: null, riffle: null, leftTex: null, rightTex: null, glow: 0,
   };
-  const camTarget = () => (spread ? (s.mode === 'closed' ? 0.5 : 0) : 0.5);
+  const follow = u => { const t = clamp((u - 0.18) / 0.7, 0, 1); return t * t * (3 - 2 * t); };
+  function camTarget() {
+    if (spread) return s.mode === 'closed' ? 0.5 : 0;
+    if (s.mode === 'closed') return 0.5;
+    if (s.riffle) return s.riffle.last && s.side === 'left' ? 0.5 - follow((1 - s.riffle.x) / 2) : 0.5;
+    if (s.mode === 'opening') return 0.5;
+    if (s.turn) return 0.5 - follow((1 - s.turn.x) / 2);
+    return s.side === 'left' ? -0.5 : 0.5;
+  }
+  const pageIndex = () => (spread ? s.cur : s.cur * 2 + (s.side === 'right' ? 1 : 0));
+  const pageCount = spread ? count : count * 2;
+  if (options.opened) s.camX = camTarget();
 
   function resize() {
     const d = Math.min(devicePixelRatio || 1, 2);
@@ -283,11 +304,13 @@ export async function createCodex(canvas, stage, options) {
     post[12] = ((sr.left + sw / 2) - (cr.left + cr.width / 2)) / (cr.width / 2); post[13] = -((sr.top + sh / 2) - (cr.top + cr.height / 2)) / (cr.height / 2);
     s.baseVP = mul(post, mul(proj, view));
     // The closed book drifts in and settles; once open it sits still so fingers land where they aim.
-    const a = ease(s.arrive), bob = s.mode === 'closed' && !reduced ? Math.sin(s.time * 0.9) * 0.012 : 0;
-    const pivot = [0.5, 0, 0], k = 1 - a;
+    const a = easeInOut(s.arrive), closed = s.mode === 'closed', bob = closed && !reduced ? Math.sin(s.time * 0.9) * 0.012 : 0;
+    const pivot = [0.5, 0, 0], k = 1 - a, shake = reduced ? 0 : s.held * s.held * 0.007;
     let model = ident();
     if (k > 0.001 || s.mode !== 'open') {
-      model = mul(translate(pivot[0], -1.5 * k * k + bob, 0.5 * k), mul(rotX(-0.9 * k + s.tilt[1] * 0.04 * (s.mode === 'closed' ? 1 : 0)), mul(rotZ(0.22 * k + (s.mode === 'closed' ? -0.035 + s.tilt[0] * 0.03 : 0) * (1 - ease(s.hinge / PI))), translate(-pivot[0], 0, 0))));
+      // It comes in from far off, turning as it falls, and trembles while the star is held.
+      model = mul(translate(pivot[0] + Math.sin(s.time * 71) * shake, 0.75 * k + bob + Math.cos(s.time * 83) * shake, -16 * k * k),
+        mul(rotX(-0.75 * k + (closed ? s.tilt[1] * 0.04 : 0)), mul(rotZ(1.5 * k + (closed ? -0.035 + s.tilt[0] * 0.03 + Math.sin(s.time * 97) * shake * 2 : 0) * (1 - ease(s.hinge / PI))), translate(-pivot[0], 0, 0))));
     }
     s.mvp = mul(s.baseVP, model);
     s.inv = invert(s.baseVP);
@@ -312,7 +335,7 @@ export async function createCodex(canvas, stage, options) {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, o.front); gl.uniform1i(U.uFront, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, o.back || o.front); gl.uniform1i(U.uBack, 1);
     const tint = o.tint || [1, 1, 1]; gl.uniform3f(U.uTint, tint[0], tint[1], tint[2]);
-    gl.uniform1f(U.uGutter, o.gutter || 0); gl.uniform1f(U.uFoil, o.foil || 0); gl.uniform1f(U.uAlpha, o.alpha ?? 1); gl.uniform1f(U.uFlat, o.flat || 0);
+    gl.uniform1f(U.uGutter, o.gutter || 0); gl.uniform1f(U.uFoil, o.foil || 0); gl.uniform1f(U.uAlpha, o.alpha ?? 1); gl.uniform1f(U.uFlat, o.flat || 0); gl.uniform1f(U.uLife, o.life || 0);
     gl.uniform1f(U.uShadowK, o.shadow ? 1 : 0);
     if (o.shadow) { gl.uniform4f(U.uShadow, ...o.shadow.slice(0, 4)); gl.uniform1f(U.uShadowY, o.shadow[4]); }
     const hot = new Float32Array(18); (o.hot || []).slice(0, 6).forEach((h, i) => hot.set(h, i * 3));
@@ -370,12 +393,12 @@ export async function createCodex(canvas, stage, options) {
     }
     const hotOn = isOpen && !active;
     if (opening || isOpen) {
-      if (isOpen || s.riffle) draw({rect: PAGE_L, front: leftTex, gutter: -1, shadow: sheet?.shadow, tint: [glow, glow, glow], hot: hotOn ? options.hot?.(s.cur, 'left') : null});
-      draw({rect: PAGE_R, front: rightTex, gutter: 1, shadow: sheet?.shadow, tint: [glow, glow, glow], hot: hotOn ? options.hot?.(s.cur, 'right') : null});
-    } else draw({rect: PAGE_R, front: T.title, gutter: 1});
-    if (sheet) draw({rect: PAGE_R, z: 0.0015, front: sheet.front, back: sheet.back, fold: sheet.fold, foldY: sheet.foldY});
+      if (isOpen || s.riffle) draw({rect: PAGE_L, front: leftTex, gutter: -1, shadow: sheet?.shadow, tint: [glow, glow, glow], life: isOpen ? 1 : 0, hot: hotOn ? options.hot?.(s.cur, 'left') : null});
+      draw({rect: PAGE_R, front: rightTex, gutter: 1, shadow: sheet?.shadow, tint: [glow, glow, glow], life: isOpen ? 1 : 0, hot: hotOn ? options.hot?.(s.cur, 'right') : null});
+    } else { const lit = 1 + s.held * 2.2; draw({rect: PAGE_R, front: T.title, gutter: 1, tint: [lit, lit * 0.96, lit * 0.82]}); }
+    if (sheet) draw({rect: PAGE_R, z: 0.0015, front: sheet.front, back: sheet.back, fold: sheet.fold, foldY: sheet.foldY, life: isOpen ? 1 : 0});
     // The cover, hinged at the spine.
-    if (!isOpen && !s.riffle) draw({rect: [0, -H / 2 - 0.035, 1.04, H / 2 + 0.035], z: 0.014, hinge: Math.max(s.hinge, 0.0001), front: T.cover, back: T.endpaper, foil: 0.55 + s.held * 1.6});
+    if (!isOpen && !s.riffle) draw({rect: [0, -H / 2 - 0.035, 1.04, H / 2 + 0.035], z: 0.014, hinge: Math.max(s.hinge, 0.0001 + s.held * s.held * 0.11), front: T.cover, back: T.endpaper, foil: 0.55 + s.held * 2.4});
   }
 
   /* ----- Motion ----- */
@@ -393,14 +416,16 @@ export async function createCodex(canvas, stage, options) {
     const dt = Math.min(0.05, (now - s.last) / 1000); s.last = now; s.time += dt;
     if (!document.hidden) {
       for (const i of [0, 1]) s.tilt[i] += (s.tiltTarget[i] - s.tilt[i]) * (1 - Math.exp(-dt * 5));
-      s.camX += (camTarget() - s.camX) * (1 - Math.exp(-dt * 3.2));
-      if (s.arrive < 1) { s.arrive = Math.min(1, s.arrive + dt / 1.5); if (s.arrive >= 1) on.settle?.(); }
+      const goal = camTarget();
+      s.camX += (goal - s.camX) * (1 - Math.exp(-dt * (s.turn || s.riffle ? 16 : s.panning ? 7 : 3.2)));
+      if (s.panning && Math.abs(goal - s.camX) < 0.006) { s.camX = goal; s.panning = false; camera(); arrived(); }
+      if (s.arrive < 1) { s.arrive = Math.min(1, s.arrive + dt / 2.6); if (s.arrive >= 1) on.settle?.(); }
       if (s.mode === 'closed' && (s.frame = (s.frame || 0) + 1) % 6 === 0) on.track?.();
       s.sheen += dt * (0.5 + s.held * 3);
       s.glow = Math.max(0, s.glow - dt * 1.4);
       s.hotK += ((s.mode === 'open' && !s.turn && !s.riffle ? 1 : 0) - s.hotK) * (1 - Math.exp(-dt * 4));
       if (s.mode === 'opening' && !s.riffle) {
-        s.hinge = Math.min(PI, s.hinge + dt * PI / (reduced ? 0.01 : 1.25) * (0.35 + 1.3 * Math.sin(Math.min(1, s.hinge / PI + 0.06) * PI)));
+        s.hinge = Math.min(PI, s.hinge + dt * PI / (reduced ? 0.01 : 0.95) * (0.35 + 1.3 * Math.sin(Math.min(1, s.hinge / PI + 0.06) * PI)));
         if (s.hinge >= PI) startRiffle();
       }
       const t = s.turn;
@@ -423,9 +448,21 @@ export async function createCodex(canvas, stage, options) {
   }
   function finishTurn(t) {
     s.turn = null; on.drag?.(0);
-    if (t.completes) { s.cur = t.to; on.page?.(s.cur); } else on.rest?.();
-    const next = s.queue.shift();
-    if (next !== undefined) turnTo(next, true);
+    if (t.completes) { s.cur = t.to; if (!spread) { s.side = t.dir > 0 ? 'left' : 'right'; s.camX = camTarget(); camera(); } arrived(); }
+    else { s.goalPage = null; on.rest?.(); }
+  }
+  /** A new page is in front of the reader: tell the screen, then keep going if a further page was asked for. */
+  function arrived() {
+    on.page?.(pageIndex());
+    if (s.goalPage === null || s.goalPage === pageIndex()) { s.goalPage = null; return; }
+    stepToward(s.goalPage, true);
+  }
+  function pan(to) { s.side = to; s.panning = true; on.pan?.(to); }
+  function stepToward(target, chained) {
+    const dir = target > pageIndex() ? 1 : -1;
+    if (!spread && dir > 0 && s.side === 'left') return pan('right');
+    if (!spread && dir < 0 && s.side === 'right') return pan('left');
+    autoTurn(dir, chained);
   }
   function beginTurn(dir, auto) {
     const to = s.cur + dir;
@@ -435,12 +472,16 @@ export async function createCodex(canvas, stage, options) {
     on.lift?.();
     return s.turn;
   }
-  function turnTo(index, chained = false) {
-    if (s.mode !== 'open' || index === s.cur || index < 0 || index >= count) return;
-    if (s.turn || s.riffle) { if (!s.turn?.dragging) s.queue = [index]; return; }
-    const dir = index > s.cur ? 1 : -1, t = beginTurn(dir, true);
-    if (!t) return;
-    if (Math.abs(index - s.cur) > 1) s.queue = [index];
+  function turnTo(index) {
+    if (s.mode !== 'open' || index < 0 || index >= pageCount) return;
+    if (s.turn?.dragging) return;
+    s.goalPage = index;
+    if (s.turn || s.riffle || s.panning || index === pageIndex()) { if (index === pageIndex()) s.goalPage = null; return; }
+    stepToward(index, false);
+  }
+  function autoTurn(dir, chained) {
+    const t = beginTurn(dir, true);
+    if (!t) { s.goalPage = null; return; }
     t.target = -dir; t.completes = true; t.phiTarget = -0.26 * dir; t.v = -dir * (chained ? 3 : 1.2);
     setTimeout(() => { if (s.turn === t) t.phiTarget = 0; }, 260);
     if (reduced) { t.x = t.target; }
@@ -448,13 +489,13 @@ export async function createCodex(canvas, stage, options) {
   // Opening: the cover swings over, then a few leaves riffle past to the first picture.
   function startRiffle() {
     s.leftTex = T.endpaper; s.rightTex = T.title;
-    const sheets = reduced ? [] : [[T.title, T.paper, T.paper], [T.paper, T.paper, T.paper], [T.paper, spread ? left[s.cur] : T.paper, right[s.cur]]];
+    const sheets = reduced ? [] : [[T.title, T.paper, T.paper], [T.paper, T.paper, T.paper], [T.paper, left[s.cur], right[s.cur]]];
     let leftNow = T.endpaper;
     const next = () => {
       const sh = sheets.shift();
-      if (!sh) { s.riffle = null; s.leftTex = s.rightTex = null; s.mode = 'open'; s.camX = camTarget(); s.glow = 1; camera(); on.open?.(); on.page?.(s.cur); return; }
+      if (!sh) { s.riffle = null; s.leftTex = s.rightTex = null; s.mode = 'open'; s.camX = camTarget(); s.glow = 1; camera(); on.open?.(); on.page?.(pageIndex()); return; }
       on.riffle?.();
-      s.riffle = {front: sh[0], back: sh[1], under: sh[2], left: leftNow, t: 0, dur: sheets.length ? 0.34 : 0.5, x: 1, phi: 0, gy: -H * 0.2, done: () => { leftNow = sh[1]; next(); }};
+      s.riffle = {front: sh[0], back: sh[1], under: sh[2], left: leftNow, t: 0, dur: sheets.length ? 0.3 : 0.62, last: !sheets.length, x: 1, phi: 0, gy: -H * 0.2, done: () => { leftNow = sh[1]; next(); }};
     };
     s.mode = 'opening'; next();
   }
@@ -466,7 +507,8 @@ export async function createCodex(canvas, stage, options) {
   stage.addEventListener('pointerdown', e => {
     if (s.mode !== 'open' || e.button > 0 || s.riffle || (s.turn && !s.turn.auto)) return;
     const [px, py] = local(e), p = toPage(px, py);
-    g = {id: e.pointerId, sx: e.clientX, sy: e.clientY, p, lastX: e.clientX, lastT: performance.now(), vx: 0, turn: null};
+    if (s.panning) return;
+    g = {id: e.pointerId, sx: e.clientX, sy: e.clientY, p, wpp: toPage(px + 1, py)[0] - p[0], lastX: e.clientX, lastT: performance.now(), vx: 0, turn: null};
     moved = false;
   }, opts);
   stage.addEventListener('pointermove', e => {
@@ -477,7 +519,12 @@ export async function createCodex(canvas, stage, options) {
       if (Math.abs(dx) < 7 || Math.abs(dx) < Math.abs(dy) * 0.8) return;
       const dir = dx < 0 ? 1 : -1;
       // A sheet already turning on its own can be caught mid-air.
-      if (s.turn?.auto && s.turn.dir === dir) { g.turn = s.turn; s.queue = []; }
+      if (!spread && !s.turn) {
+        // On a narrow screen, the other page of the same spread is a glance across, not a turn.
+        const across = dir > 0 && s.side === 'left' ? 'right' : dir < 0 && s.side === 'right' ? 'left' : null;
+        if (across) { g = null; s.goalPage = null; pan(across); return; }
+      }
+      if (s.turn?.auto && s.turn.dir === dir) { g.turn = s.turn; s.goalPage = null; }
       else if (s.turn) return;
       else g.turn = beginTurn(dir, false);
       if (!g.turn) { g = null; on.refuse?.(); return; }
@@ -487,10 +534,9 @@ export async function createCodex(canvas, stage, options) {
       on.grab?.();
     }
     e.preventDefault();
-    const [px, py] = local(e), p = toPage(px, py), t = g.turn;
-    const gain = spread ? 1.3 : 1.75;
-    t.target = clamp(g.base + (p[0] - g.px) * gain, -1, 1.02);
-    t.phiTarget = clamp(0.42 * (t.gy / (H / 2)) - (p[1] - g.p[1]) * 0.55, -0.5, 0.5);
+    const t = g.turn, gain = spread ? 1.3 : 2.3;
+    t.target = clamp(g.base + dx * g.wpp * gain, -1, 1.02);
+    t.phiTarget = clamp(0.42 * (t.gy / (H / 2)) + dy * g.wpp * 0.55, -0.5, 0.5);
     const now = performance.now();
     if (now - g.lastT > 12) { g.vx = (e.clientX - g.lastX) / (now - g.lastT); g.lastX = e.clientX; g.lastT = now; }
   }, opts);
@@ -516,7 +562,7 @@ export async function createCodex(canvas, stage, options) {
   requestAnimationFrame(tick);
 
   return {
-    get index() { return s.cur; }, get count() { return count; }, get mode() { return s.mode; },
+    get index() { return pageIndex(); }, get count() { return pageCount; }, get mode() { return s.mode; }, get spreadIndex() { return s.cur; }, get side() { return s.side; },
     project, turnTo,
     hold(v) { s.held = v; },
     open() { if (s.mode !== 'closed') return; s.mode = 'opening'; s.held = 0; s.rightTex = T.title; s.leftTex = T.endpaper; if (reduced) s.hinge = PI - 0.001; },

@@ -2,9 +2,9 @@
 
 import * as store from './store.js';
 import {realms, ART, findGift, activities} from './data.js';
-import {nav, views, actions, go, render} from './app.js';
+import {nav, views, actions, sky, go, render} from './app.js';
 import {icon, safe, plural, toyImage, $, $$, reducedMotion, compact, announce, toast, openDialog, closeDialog,
-  sound, chime, blip, whoosh, horn, paper, pageLand, thud, coverOpen, starBorn, rise, charge, friction, buzz, sparkFlight} from './ui.js';
+  sound, chime, blip, whoosh, horn, paper, pageLand, thud, starBorn, rise, charge, drone, crescendo, friction, buzz, sparkFlight} from './ui.js';
 import {createCodex} from './codex.js';
 import {mountHologram, hasModel} from './hologram.js';
 
@@ -21,33 +21,37 @@ actions.profile = el => {
   views[nav.page].mode === 'kid' ? go('world') : render();
 };
 
-let book = null, bookToken = null, stopCharge = null;
+let book = null, bookToken = null, stopCharge = null, stopDrone = null;
 const leafOf = t => (t.x < 50 ? 'left' : 'right');
-/** A wide screen shows a whole spread; a phone shows one leaf of it. */
-function bookPages() {
-  const ok = store.curated().map(g => g.id);
-  return openRealms().flatMap(r => compact.matches
-    ? ['left', 'right'].map(leaf => ({...r, leaf, toys: r.toys.filter(t => leafOf(t) === leaf)})).filter(p => p.toys.some(t => ok.includes(t.id)))
-    : [{...r, leaf: null}]);
+const wideBook = () => !compact.matches;
+/** What the reader is looking at: a whole spread on a wide screen, one side of it on a phone. */
+function bookView(index) {
+  const spreads = openRealms(), wide = wideBook();
+  const spread = spreads[wide ? index : Math.floor(index / 2)];
+  return {spread, side: wide ? null : (index % 2 ? 'right' : 'left'), total: wide ? spreads.length : spreads.length * 2};
 }
 
 views.world = {
-  mode: 'kid', opaque: true,
+  mode: 'kid', opaque: true, snow: 1,
   html() {
-    const pages = bookPages();
-    if (!pages.length) return `<section class="kid-empty"><span class="eyebrow">ALMOST READY</span><h1 tabindex="-1">The elves are still setting up.</h1><p>Ask a grown-up to add a few discoveries to your book.</p></section>`;
-    nav.realm = Math.max(0, Math.min(nav.realm, pages.length - 1));
-    return `<section class="lookbook" id="lookbook" data-state="${nav.bookOpen ? 'open' : 'closed'}" style="--glow:${pages[nav.realm].color}">
-      <div class="book-backdrop" aria-hidden="true"><img id="book-glow" src="assets/realm-${pages[nav.realm].id}-sm.webp" alt=""></div>
+    const spreads = openRealms();
+    if (!spreads.length) return `<section class="kid-empty"><span class="eyebrow">ALMOST READY</span><h1 tabindex="-1">The elves are still setting up.</h1><p>Ask a grown-up to add a few discoveries to your book.</p></section>`;
+    const total = wideBook() ? spreads.length : spreads.length * 2;
+    nav.realm = Math.max(0, Math.min(nav.realm, total - 1));
+    const first = bookView(nav.realm).spread;
+    return `<section class="lookbook" id="lookbook" data-state="${nav.bookOpen ? 'open' : 'closed'}" style="--glow:${first.color}">
+      <div class="book-backdrop" aria-hidden="true"><img id="book-glow" src="assets/realm-${first.id}-sm.webp" alt=""><i class="firelight"></i></div>
+      <div class="book-halo" aria-hidden="true"></div>
       <canvas id="codex" class="codex" aria-hidden="true"></canvas>
+      <div class="book-rays" aria-hidden="true"></div>
       <div class="book-flash" aria-hidden="true"></div>
       <header class="book-head">
-        <div class="cover-head"><span class="eyebrow">A LOOKBOOK FROM THE NORTH POLE</span><h1 tabindex="-1">${name()}, this one <em>is yours.</em></h1></div>
+        <div class="cover-head"><p class="overture">Far to the north, a book has been waiting.</p><h1 tabindex="-1">${name()}, this one <em>is yours.</em></h1></div>
         <div class="world-title" id="book-title"></div>
       </header>
       <div class="book-stage" id="book-stage">
         <div class="marker-layer" id="markers"></div>
-        <button class="seal" id="seal" data-hold data-hold-ms="1100" data-hold-action="open-book" aria-label="Press and hold the star to open the book"><span class="hold-ring" aria-hidden="true"></span></button>
+        <button class="seal" id="seal" data-hold data-hold-ms="1900" data-hold-action="open-book" aria-label="Press and hold the star to open the book"><span class="hold-ring" aria-hidden="true"></span></button>
       </div>
       <footer class="book-foot">
         <div class="cover-foot"><p class="cover-hint">${icon('hand', 18)} Press and hold the star</p>${siblings()}</div>
@@ -60,34 +64,36 @@ views.world = {
     </section>`;
   },
   mount(root) { mountBook(root); },
-  unmount() { bookToken = null; book?.destroy(); book = null; stopCharge?.(); friction.stop(); },
+  unmount() { bookToken = null; book?.destroy(); book = null; stopCharge?.(); stopDrone?.(); stopDrone = null; friction.stop(); sky.pull(); },
 };
 
 async function mountBook(root) {
-  const pages = bookPages(), shell = $('#lookbook', root);
+  const spreads = openRealms(), shell = $('#lookbook', root);
   if (!shell) return;
-  const stage = $('#book-stage', root), spread = !compact.matches, ok = store.curated().map(g => g.id);
+  const stage = $('#book-stage', root), wide = wideBook(), ok = store.curated().map(g => g.id);
   const token = bookToken = {};
   const hidden = (p, half) => p.toys.filter(t => leafOf(t) === half && !ok.includes(t.id));
   // Where each toy sits on its page: across, down, and how big.
-  const spots = (p, side) => p.toys.filter(t => ok.includes(t.id) && (p.leaf ? side === 'right' : leafOf(t) === side))
+  const spots = (p, side) => p.toys.filter(t => ok.includes(t.id) && leafOf(t) === side)
     .map(t => ({t, u: (t.x % 50) / 50, v: t.y / 100, w: t.w / 50, h: t.h / 100}));
   const abort = new AbortController();
+  const centre = () => { const r = $('#seal').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
   function paint() {
     if (token !== bookToken || !book || book.mode !== 'open') return;
-    const page = pages[book.index], wishes = store.profile().wishes, box = stage.getBoundingClientRect(), cv = $('#codex').getBoundingClientRect();
-    const found = page.toys.filter(t => ok.includes(t.id)), last = book.index === pages.length - 1;
+    const {spread: page, side, total} = bookView(book.index), wishes = store.profile().wishes, box = stage.getBoundingClientRect(), cv = $('#codex').getBoundingClientRect();
+    const sides = side ? [side] : ['left', 'right'], found = sides.flatMap(sd => spots(page, sd)), last = book.index === total - 1;
     shell.style.setProperty('--glow', page.color);
     $('#book-glow').src = `assets/realm-${page.id}-sm.webp`;
-    $('#book-title').innerHTML = `<span class="eyebrow">PAGE ${book.index + 1} OF ${pages.length} <i>✦</i> ${plural(found.length, 'discovery')}</span><h2>${page.title}</h2><p>${page.line}</p>`;
-    $('#markers').innerHTML = ['left', 'right'].flatMap(side => spots(page, side).map(({t, u, v, w, h}, i) => {
-      const [x0, y0] = book.project(side, u - w / 2, v - h / 2), [x1, y1] = book.project(side, u + w / 2, v + h / 2);
+    $('#book-title').innerHTML = `<span class="eyebrow">PAGE ${book.index + 1} OF ${total} <i>✦</i> ${plural(found.length, 'discovery')}</span><h2>${page.title}</h2><p>${page.line}</p>`;
+    $('#markers').innerHTML = sides.flatMap(sd => spots(page, sd).map(({t, u, v, w, h}, i) => {
+      const [x0, y0] = book.project(sd, u - w / 2, v - h / 2), [x1, y1] = book.project(sd, u + w / 2, v + h / 2);
       const gift = findGift(t.id), on = wishes.includes(t.id);
       return `<button class="beacon ${on ? 'wished' : ''}" data-action="toy" data-id="${t.id}" style="left:${x0 - (box.left - cv.left)}px;top:${y0 - (box.top - cv.top)}px;width:${x1 - x0}px;height:${y1 - y0}px;--i:${i}" aria-label="${gift.name}${on ? ', on your wish list' : ''}">
         <span class="reticle" aria-hidden="true"></span><i class="spark">${icon('star', 12)}</i><span class="tag">${gift.name}</span></button>`;
     })).join('');
-    $('#page-dots').innerHTML = pages.map((p, i) => `<button data-action="turn" data-index="${i}" style="--glow:${p.color}" aria-label="Page ${i + 1}: ${p.title}" ${i === book.index ? 'aria-current="true"' : ''}></button>`).join('');
+    $('#page-dots').innerHTML = Array.from({length: total}, (_, i) => { const v = bookView(i);
+      return `<button data-action="turn" data-index="${i}" style="--glow:${v.spread.color}" aria-label="Page ${i + 1}: ${v.spread.title}" ${i === book.index ? 'aria-current="true"' : ''}></button>`; }).join('');
     $('#turn-back').disabled = book.index === 0;
     const forward = $('#turn-on');
     forward.classList.toggle('go', last);
@@ -98,41 +104,54 @@ async function mountBook(root) {
   const placeSeal = () => {
     if (!book) return;
     const box = stage.getBoundingClientRect(), cv = $('#codex').getBoundingClientRect(), [cx, cy] = book.project('right', 0.5, 420 / 1152), [ex] = book.project('right', 0.5 + 150 / 1024, 420 / 1152);
-    Object.assign($('#seal').style, {left: `${cx - (box.left - cv.left)}px`, top: `${cy - (box.top - cv.top)}px`, width: `${(ex - cx) * 2}px`});
+    Object.assign($('#seal').style, {left: `${cx - (box.left - cv.left)}px`, top: `${cy - (box.top - cv.top)}px`, width: `${Math.abs(ex - cx) * 2}px`});
+    shell.style.setProperty('--bx', `${cx}px`); shell.style.setProperty('--by', `${cy}px`);
+  };
+  const arrive = (i, quiet) => {
+    nav.realm = i; shell.classList.remove('arrived', 'turning'); void shell.offsetWidth; shell.classList.add('arrived'); paint();
+    const v = bookView(i); if (!quiet) announce(`Page ${i + 1} of ${v.total}. ${v.spread.title}.`);
   };
 
   const made = await createCodex($('#codex', root), stage, {
-    spread, reduced: reducedMotion.matches, start: nav.realm, opened: !!nav.bookOpen,
+    spread: wide, reduced: reducedMotion.matches, start: nav.realm, opened: !!nav.bookOpen,
     name: store.childName(), year: new Date().getFullYear(),
-    line: `${plural(openRealms().length, 'world')} · ${plural(store.curated().length, 'discovery')}`,
-    openings: pages.map(p => spread ? {src: `assets/realm-${p.id}.webp`, leftHidden: hidden(p, 'left'), rightHidden: hidden(p, 'right')} : {src: `assets/realm-${p.id}.webp`, half: p.leaf, hidden: hidden(p, p.leaf)}),
-    hot: (i, side) => spots(pages[i], side).map(({u, v}) => [u, 1 - v, 0.9]),
+    line: `${plural(spreads.length, 'world')} · ${plural(store.curated().length, 'discovery')}`,
+    openings: spreads.map(p => ({src: `assets/realm-${p.id}.webp`, leftHidden: hidden(p, 'left'), rightHidden: hidden(p, 'right')})),
+    hot: (i, side) => spots(spreads[i], side).map(({u, v}) => [u, 1 - v, 0.9]),
     on: {
       layout() { placeSeal(); paint(); },
       track() { placeSeal(); },
-      settle() { thud(0.8); buzz('firm'); },
-      riffle() { paper(); buzz('tick'); },
-      open() { shell.dataset.state = 'open'; shell.classList.add('flash'); chime(0.8); buzz('firm'); announce(`The book is open. ${pages[book.index].title}.`); },
-      page(i) { nav.realm = i; shell.classList.remove('arrived', 'turning'); void shell.offsetWidth; shell.classList.add('arrived'); paint(); announce(`Page ${i + 1} of ${pages.length}. ${pages[i].title}.`); },
+      settle() { thud(1); buzz('heavy'); shell.classList.add('landed'); const [x, y] = centre(); sky.burst(x, y + 60, 46, {speed: 190, life: 1.5, gravity: 50, size: 1.8}); sky.gust(0.5); },
+      riffle() { paper(); buzz('tick'); sky.gust(-0.7); },
+      open() { shell.dataset.state = 'open'; chime(0.7); buzz('firm'); announce(`The book is open. ${bookView(book.index).spread.title}.`); },
+      page(i) { arrive(i); },
+      pan() { shell.classList.add('turning'); paper(); buzz('soft'); },
       lift() { shell.classList.add('turning'); paper(); buzz('soft'); },
       grain() { buzz('tick'); },
-      drag(speed) { friction.set(speed); },
-      land() { pageLand(); buzz('firm'); },
+      drag(speed) { friction.set(speed); if (speed > 0.25) sky.gust(-0.05 * speed); },
+      land() { pageLand(); buzz('firm'); sky.gust(-0.9); },
       release(completes) { if (!completes) shell.classList.remove('turning'); },
       rest() { shell.classList.remove('turning'); buzz('tick'); },
       refuse() { buzz('heavy'); shell.classList.remove('nope'); void shell.offsetWidth; shell.classList.add('nope'); },
     },
   });
   if (token !== bookToken) { made?.destroy(); return; }
-  if (!made) { shell.dataset.state = 'flat'; return flatBook(shell, pages, spots); }
+  if (!made) { shell.dataset.state = 'flat'; return flatBook(shell, spreads, spots); }
   book = made;
   shell.classList.add('ready');
   placeSeal(); paint();
+  if (book.mode === 'closed') { stopDrone?.(); stopDrone = drone(); whoosh(); }
 
-  const seal = $('#seal');
-  seal.addEventListener('holdstart', () => { stopCharge?.(); stopCharge = charge(); buzz('soft'); }, {signal: abort.signal});
-  seal.addEventListener('holdprogress', e => { book?.hold(e.detail); if (e.detail && Math.round(e.detail * 100) % 20 === 0) buzz('tick'); }, {signal: abort.signal});
-  seal.addEventListener('holdend', () => { stopCharge?.(); stopCharge = null; }, {signal: abort.signal});
+  // Holding the star: the book trembles, light leaks out, snow is drawn in, and the ticks come faster.
+  const seal = $('#seal'); let lastTick = 0;
+  seal.addEventListener('holdstart', () => { stopCharge?.(); stopCharge = charge(); buzz('soft'); shell.classList.add('charging'); }, {signal: abort.signal});
+  seal.addEventListener('holdprogress', e => {
+    const p = e.detail, now = performance.now(), [x, y] = centre();
+    book?.hold(p); shell.style.setProperty('--charge', p);
+    sky.pull(x, y, p ? 0.25 + p * 1.6 : 0);
+    if (p && now - lastTick > 300 - 240 * p) { lastTick = now; buzz(p > 0.7 ? 'firm' : 'tick'); sky.burst(x, y, 3 + Math.round(p * 7), {inward: 120 + p * 200, life: 0.5, size: 1.6 + p}); }
+  }, {signal: abort.signal});
+  seal.addEventListener('holdend', () => { stopCharge?.(); stopCharge = null; sky.pull(); shell.classList.remove('charging'); shell.style.setProperty('--charge', 0); }, {signal: abort.signal});
   document.addEventListener('keydown', e => {
     if (token !== bookToken) return abort.abort();
     if ($('#dialog').open || e.target.matches('input, textarea, select') || book?.mode !== 'open') return;
@@ -140,11 +159,22 @@ async function mountBook(root) {
     if (e.key === 'ArrowLeft') book.turnTo(book.index - 1);
   }, {signal: abort.signal});
 }
+/** The crescendo: one held breath of silence, then the book bursts open. */
 export function openBook() {
   if (!book || book.mode !== 'closed') return;
+  const shell = $('#lookbook'), r = $('#seal').getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
   nav.bookOpen = true;
-  $('#lookbook').dataset.state = 'opening';
-  book.open(); coverOpen(); buzz('heavy');
+  shell.dataset.state = 'opening';
+  stopCharge?.(); stopCharge = null; stopDrone?.(0.05); stopDrone = null; sky.pull();
+  book.hold(1);
+  setTimeout(() => {
+    if (!book || $('#lookbook') !== shell) return;
+    book.open(); crescendo(); buzz([70, 40, 30, 40, 30, 60, 110]);
+    shell.classList.add('flash', 'burst');
+    sky.burst(x, y, 150, {speed: 620, up: 260, life: 2, size: 2.6, gravity: 240, drag: 1.1});
+    sky.burst(x, y, 70, {speed: 240, up: 80, life: 2.8, size: 1.6, gravity: 30, drag: 0.6});
+    sky.gust(2.2);
+  }, reducedMotion.matches ? 0 : 170);
 }
 actions.turn = el => {
   if (!book) return;
@@ -152,19 +182,19 @@ actions.turn = el => {
 };
 
 /** Without WebGL the book still works: flat pictures and the same buttons, just no paper. */
-function flatBook(shell, pages, spots) {
+function flatBook(shell, spreads, spots) {
   nav.bookOpen = true;
   const show = () => {
-    const page = pages[nav.realm], wishes = store.profile().wishes;
-    $('#book-title').innerHTML = `<span class="eyebrow">PAGE ${nav.realm + 1} OF ${pages.length}</span><h2>${page.title}</h2><p>${page.line}</p>`;
-    $('#markers').innerHTML = `<div class="flat-page ${page.leaf || 'both'}"><img src="assets/realm-${page.id}.webp" alt="">${['left', 'right'].flatMap(side => spots(page, side).map(({t, u, v, w, h}) => {
-      const k = page.leaf ? 1 : 0.5, x = (page.leaf ? u : (side === 'left' ? u : 1 + u) * 0.5);
+    const {spread: page, side, total} = bookView(nav.realm), wishes = store.profile().wishes, sides = side ? [side] : ['left', 'right'];
+    $('#book-title').innerHTML = `<span class="eyebrow">PAGE ${nav.realm + 1} OF ${total}</span><h2>${page.title}</h2><p>${page.line}</p>`;
+    $('#markers').innerHTML = `<div class="flat-page ${side || 'both'}"><img src="assets/realm-${page.id}.webp" alt="">${sides.flatMap(sd => spots(page, sd).map(({t, u, v, w, h}) => {
+      const k = side ? 1 : 0.5, x = side ? u : (sd === 'left' ? u : 1 + u) * 0.5;
       return `<button class="beacon ${wishes.includes(t.id) ? 'wished' : ''}" data-action="toy" data-id="${t.id}" style="left:${(x - w * k / 2) * 100}%;top:${(v - h / 2) * 100}%;width:${w * k * 100}%;height:${h * 100}%" aria-label="${findGift(t.id).name}"><i class="spark">${icon('star', 12)}</i><span class="tag">${findGift(t.id).name}</span></button>`;
     })).join('')}</div>`;
-    $('#page-dots').innerHTML = pages.map((p, i) => `<button data-action="turn" data-index="${i}" aria-label="Page ${i + 1}" ${i === nav.realm ? 'aria-current="true"' : ''}></button>`).join('');
-    $('#turn-back').disabled = nav.realm === 0; $('#turn-on').disabled = nav.realm === pages.length - 1;
+    $('#page-dots').innerHTML = Array.from({length: total}, (_, i) => `<button data-action="turn" data-index="${i}" aria-label="Page ${i + 1}" ${i === nav.realm ? 'aria-current="true"' : ''}></button>`).join('');
+    $('#turn-back').disabled = nav.realm === 0; $('#turn-on').disabled = nav.realm === total - 1;
   };
-  book = {mode: 'open', get index() { return nav.realm; }, turnTo(i) { if (i < 0 || i >= pages.length) return; nav.realm = i; show(); }, hold() {}, open() {}, destroy() {}, project: () => [0, 0]};
+  book = {mode: 'open', get index() { return nav.realm; }, turnTo(i) { if (i < 0 || i >= bookView(0).total) return; nav.realm = i; show(); }, hold() {}, open() {}, destroy() {}, project: () => [0, 0]};
   show();
 }
 

@@ -57,6 +57,9 @@ button:disabled { cursor: not-allowed; }
     linear-gradient(180deg, #050b16, #071320 60%, #04080f);
 }
 
+/* Snow and sparks drift over the scene, under the controls. */
+.atmosphere { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+
 /* ---------- Type ---------- */
 h1 { font: 400 clamp(40px, 5.4vw, 68px)/1 var(--display); letter-spacing: -.015em; text-wrap: balance; }
 h1:focus, h1:focus-visible, dialog:focus, dialog:focus-visible { outline: none; }

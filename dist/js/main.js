@@ -1,9 +1,10 @@
 // Boot: wire events, start the sky, connect family sync.
 
 import * as store from './store.js';
-import {nav, views, actions, aurora, go, render} from './app.js';
+import {nav, views, actions, aurora, sky, go, render} from './app.js';
 import {$, icon, sound, toast, announce, reducedMotion, compact, initDialog, initHold, closeDialog, dialogOpen} from './ui.js';
 import {mountAurora} from './aurora.js';
+import {mountAtmosphere} from './atmosphere.js';
 import {seal, openBook, flightSoundChanged} from './kid.js';
 import {initParentInputs} from './parent.js';
 
@@ -37,6 +38,7 @@ compact.addEventListener('change', () => { if (nav.page === 'world') nav.realm =
 initDialog();
 initParentInputs();
 Object.assign(aurora, mountAurora($('#aurora'), {reduced: reducedMotion.matches}));
+Object.assign(sky, mountAtmosphere($('#atmosphere'), {reduced: reducedMotion.matches}));
 
 store.subscribe(event => {
   const parent = views[nav.page]?.mode === 'parent';

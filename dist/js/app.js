@@ -7,6 +7,7 @@ export const nav = {page: 'home', realm: 0, bookOpen: false, star: null, filter:
 export const views = {};    // page -> {mode: 'parent' | 'kid', html(), mount?(root), unmount?(), bare?}
 export const actions = {};  // data-action name -> handler(element, event)
 export const aurora = {setWarm() {}, pause() {}};
+export const sky = {density() {}, gust() {}, pull() {}, burst() {}};   // snow and sparks, filled in at start-up
 
 const parentNav = [
   ['home', 'Tonight', 'home'], ['curate', 'Wishbook', 'grid'], ['mail', 'Santa mail', 'mail'], ['deliveries', 'Deliveries', 'box'],
@@ -54,6 +55,7 @@ export function render({enter = false} = {}) {
   view.mount?.(root);
   aurora.setWarm(view.warm ?? (view.mode === 'kid' ? 0.55 : 0));
   aurora.pause(!!view.opaque);
+  sky.density(view.snow ?? (view.mode === 'kid' ? 0.75 : 0.3));
   if (enter) {
     scrollTo({top: 0, behavior: 'instant'});
     requestAnimationFrame(() => root.querySelector('h1')?.focus({preventScroll: true}));

@@ -150,15 +150,43 @@ export const coverOpen = () => play(ac => { burst(ac, {freq: 240, to: 900, lengt
 export const starBorn = () => play(ac => { [523.25, 783.99, 1046.5, 1567.98].forEach((f, i) => tone(ac, f, i * 0.07, 3.2, 0.036)); tone(ac, 130.81, 0, 3, 0.05); });
 export const rise = () => play(ac => { burst(ac, {freq: 260, to: 5200, length: 1.5, volume: 0.2, q: 1.1}); tone(ac, 196, 0, 1.5, 0.035, 'sine', 1174); });
 
+/** The quiet before: a low, slow pad under the closed book. Returns a function that fades it out. */
+export function drone() {
+  if (!sound.on) return () => {};
+  try {
+    const ac = context(), g = ac.createGain(), f = ac.createBiquadFilter(), t = ac.currentTime, nodes = [];
+    f.type = 'lowpass'; f.frequency.value = 520; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.085, t + 3.5);
+    for (const [freq, detune] of [[65.41, 0], [98, 4], [130.81, -5], [196, 3]]) {
+      const o = ac.createOscillator(), lfo = ac.createOscillator(), depth = ac.createGain();
+      o.type = 'sawtooth'; o.frequency.value = freq; o.detune.value = detune;
+      lfo.frequency.value = 0.08 + Math.random() * 0.12; depth.gain.value = 6; lfo.connect(depth); depth.connect(o.detune);
+      o.connect(f); o.start(); lfo.start(); nodes.push(o, lfo);
+    }
+    f.connect(g); g.connect(ac.destination);
+    return (fade = 0.5) => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(0.0001, ac.currentTime, fade / 4); nodes.forEach(n => n.stop(ac.currentTime + fade + 0.2)); } catch {} };
+  } catch { return () => {}; }
+}
+/** The book bursting open: a held breath, then everything at once. */
+export const crescendo = () => play(ac => {
+  tone(ac, 82, 0, 1.4, 0.32, 'sine', 36);
+  burst(ac, {freq: 180, to: 7000, length: 1.6, volume: 0.24, q: 0.5});
+  burst(ac, {freq: 6000, to: 9000, length: 2.6, volume: 0.05, q: 1.5, type: 'highpass'});
+  [130.81, 196, 261.63, 329.63, 392, 523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(ac, f, 0.02 + i * 0.012, 4.2 - i * 0.2, 0.05 - i * 0.003, i < 3 ? 'triangle' : 'sine'));
+  [1318.5, 1567.98, 2093, 2637, 3136].forEach((f, i) => tone(ac, f, 0.5 + i * 0.11, 2.2, 0.018));
+});
+
 /** A tone that climbs while something is held, and stops the moment it is let go. */
 export function charge() {
   if (!sound.on) return () => {};
   try {
     const ac = context(), o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
-    o.type = 'sine'; o2.type = 'triangle'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(330, t + 1.2); o2.frequency.setValueAtTime(220, t); o2.frequency.exponentialRampToValueAtTime(660, t + 1.2);
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.07, t + 1.1);
-    o.connect(g); o2.connect(g); g.connect(ac.destination); o.start(); o2.start();
-    return () => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.05); o.stop(ac.currentTime + 0.3); o2.stop(ac.currentTime + 0.3); } catch {} };
+    const n = noise(ac), nf = ac.createBiquadFilter(), ng = ac.createGain(), span = 2.1;
+    o.type = 'sine'; o2.type = 'sawtooth'; o.frequency.setValueAtTime(98, t); o.frequency.exponentialRampToValueAtTime(392, t + span); o2.frequency.setValueAtTime(49, t); o2.frequency.exponentialRampToValueAtTime(196, t + span);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(300, t); lp.frequency.exponentialRampToValueAtTime(4200, t + span);
+    nf.type = 'bandpass'; nf.Q.value = 1.2; nf.frequency.setValueAtTime(300, t); nf.frequency.exponentialRampToValueAtTime(6000, t + span); ng.gain.setValueAtTime(0.0001, t); ng.gain.linearRampToValueAtTime(0.16, t + span);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.03, t + 0.3); g.gain.linearRampToValueAtTime(0.13, t + span);
+    o.connect(g); o2.connect(lp); lp.connect(g); n.connect(nf); nf.connect(ng); ng.connect(g); g.connect(ac.destination); o.start(); o2.start(); n.start();
+    return () => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.03); for (const x of [o, o2, n]) x.stop(ac.currentTime + 0.2); } catch {} };
   } catch { return () => {}; }
 }
 /** Paper dragging against paper: a hiss whose loudness follows how fast the page is moving. */
