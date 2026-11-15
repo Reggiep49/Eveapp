@@ -4,13 +4,14 @@ import * as store from './store.js';
 import {nav, views, actions, aurora, sky, go, render} from './app.js';
 import {$, icon, sound, toast, announce, reducedMotion, compact, initDialog, initHold, closeDialog, dialogOpen} from './ui.js';
 import {mountAurora} from './aurora.js';
+import {music} from './music.js';
 import {mountAtmosphere} from './atmosphere.js';
-import {seal, openBook, flightSoundChanged} from './kid.js';
+import {seal, openBox, flightSoundChanged} from './kid.js';
 import {initParentInputs} from './parent.js';
 
 actions.go = el => go(el.dataset.page);
 actions.close = () => closeDialog();
-actions.sound = () => { sound.toggle(); flightSoundChanged(); if (!views[nav.page]?.bare && nav.page !== 'world') render(); else document.querySelectorAll('#chrome [data-action="sound"]').forEach(b => { b.setAttribute('aria-pressed', sound.on); b.innerHTML = icon(sound.on ? 'sound' : 'mute', 19); }); announce(sound.on ? 'Sound on.' : 'Sound off.'); };
+actions.sound = () => { sound.toggle(); music.refresh(); flightSoundChanged(); if (!views[nav.page]?.bare && nav.page !== 'world') render(); else document.querySelectorAll('#chrome [data-action="sound"]').forEach(b => { b.setAttribute('aria-pressed', sound.on); b.innerHTML = icon(sound.on ? 'sound' : 'mute', 19); }); announce(sound.on ? 'Sound on.' : 'Sound off.'); };
 
 document.addEventListener('click', event => {
   const el = event.target.closest('[data-action]');
@@ -21,12 +22,12 @@ document.addEventListener('click', event => {
 // Press-and-hold: sending the letter, and the way back to the grown-ups' side.
 initHold(el => {
   if (el.dataset.holdAction === 'seal') seal();
-  if (el.dataset.holdAction === 'open-book') openBook();
+  if (el.dataset.holdAction === 'open-box') openBox();
   if (el.dataset.holdAction === 'grown-ups') go(store.currentLetter() && !store.getOrder(store.currentLetter()) ? 'mail' : 'home');
 });
 document.addEventListener('click', event => {
   const el = event.target.closest('.hold-nudge[data-hold-action]');
-  if (el) toast({seal: 'Press and hold to send your letter.', 'open-book': 'Press and hold the star to open your book.'}[el.dataset.holdAction] || 'Grown-ups: press and hold the lock.');
+  if (el) toast({seal: 'Press and hold to send your letter.', 'open-box': 'Press and hold the box to open it.'}[el.dataset.holdAction] || 'Grown-ups: press and hold the lock.');
 });
 
 document.addEventListener('keydown', event => {

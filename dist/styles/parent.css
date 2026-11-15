@@ -238,3 +238,105 @@ button.link-row:not(:disabled):hover { background: var(--glass-2); }
 @media (max-width: 640px) { .metrics { grid-template-columns: repeat(2, 1fr); gap: 10px; } .package-top { grid-template-columns: auto 1fr; } .package-top .badge { grid-column: 1 / -1; justify-self: start; } }
 
 .keepsake .quote { font-size: 22px; }
+
+/* ==========================================================================
+   The house style for grown-ups: a department-store Christmas window.
+   Black, ivory and champagne gold; large serif type; hairlines instead of glass.
+   ========================================================================== */
+body[data-mode="parent"] {
+  --accent: #d9bd7e; --accent-ink: #17120a; --accent-grad: linear-gradient(135deg, #f6e7bd, #d9bd7e 52%, #b8934f);
+  --text: #f6f0e4; --text-2: #cbc2b0; --text-3: #958c7a;
+  --line: rgba(217, 189, 126, .2); --line-2: rgba(217, 189, 126, .44);
+  --glass: rgba(255, 244, 220, .04); --glass-2: rgba(255, 244, 220, .09);
+  --mint: #a9cdb0; --good: #a9cdb0; --sky: #b9c6d8; --info: #b9c6d8;
+  --r-s: 4px; --r-m: 6px; --r-l: 8px; --r-xl: 10px;
+  background: #070605;
+}
+body[data-mode="parent"] .aurora { opacity: .3; filter: saturate(.25) sepia(.55) brightness(.8); }
+body[data-mode="parent"]::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(70% 55% at 50% -5%, rgba(217, 189, 126, .14), transparent 70%), radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, .7)); }
+body[data-mode="parent"] .chrome::before { background: linear-gradient(180deg, rgba(7, 6, 5, .92) 30%, rgba(7, 6, 5, 0)); }
+body[data-mode="parent"] h1 { font-size: clamp(46px, 6.4vw, 92px); letter-spacing: -.02em; }
+body[data-mode="parent"] .eyebrow, body[data-mode="parent"] .label { letter-spacing: .28em; color: var(--accent); font-size: 10.5px; }
+body[data-mode="parent"] .eyebrow i { color: var(--text-3); }
+body[data-mode="parent"] .page-head p { font: italic 21px/1.4 var(--display); color: var(--text-2); }
+
+body[data-mode="parent"] .btn { border-radius: 2px; text-transform: uppercase; letter-spacing: .16em; font-size: 12px; font-weight: 600; min-height: 50px; padding: 0 26px; }
+body[data-mode="parent"] .btn.sm { font-size: 11px; min-height: 40px; padding: 0 16px; letter-spacing: .14em; }
+body[data-mode="parent"] .btn.glow { box-shadow: none; }
+body[data-mode="parent"] .btn.glow:not(:disabled):hover { box-shadow: 0 12px 40px -12px rgba(217, 189, 126, .7); }
+body[data-mode="parent"] .btn.ghost { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+body[data-mode="parent"] .btn.text { letter-spacing: .12em; }
+body[data-mode="parent"] .chip { border-radius: 2px; text-transform: uppercase; letter-spacing: .14em; font-size: 11.5px; min-height: 38px; background: none; }
+body[data-mode="parent"] .chip[aria-pressed="true"] { background: var(--accent-grad); }
+body[data-mode="parent"] .segmented, body[data-mode="parent"] .segmented button { border-radius: 2px; }
+body[data-mode="parent"] .segmented button { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
+body[data-mode="parent"] .sync-pill, body[data-mode="parent"] .badge { border-radius: 2px; letter-spacing: .1em; text-transform: uppercase; font-size: 10.5px; }
+body[data-mode="parent"] .sync-pill.on i { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+body[data-mode="parent"] .field input, body[data-mode="parent"] .field select, body[data-mode="parent"] .field textarea, body[data-mode="parent"] .inline-form input, body[data-mode="parent"] .claim input { background: rgba(0, 0, 0, .4); border-radius: 2px; }
+body[data-mode="parent"] .field > span { letter-spacing: .2em; font-size: 10px; }
+
+/* Navigation: quiet icons, a gold rule under the current one. */
+body[data-mode="parent"] .dock button { text-transform: uppercase; letter-spacing: .14em; font-size: 9.5px; }
+body[data-mode="parent"] .dock-icon { border-radius: 0; background: none !important; box-shadow: none !important; }
+body[data-mode="parent"] .dock button[aria-current] { color: var(--accent); }
+body[data-mode="parent"] .dock button[aria-current] .dock-icon { color: var(--accent); }
+body[data-mode="parent"] .dock button[aria-current] .dock-icon::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -3px; height: 1px; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+body[data-mode="parent"] .dock .dot { box-shadow: 0 0 0 3px #070605, 0 0 12px var(--star); }
+@media (max-width: 820px) { body[data-mode="parent"] .dock { border-radius: 4px; background: rgba(10, 9, 7, .9); } }
+
+/* Surfaces: lacquer black with a hairline and an inner rule, like a presentation box. */
+body[data-mode="parent"] :is(.panel, .tile) { background: linear-gradient(180deg, rgba(26, 22, 16, .86), rgba(12, 10, 8, .9)); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: inset 0 0 0 5px rgba(7, 6, 5, .9), inset 0 0 0 6px rgba(217, 189, 126, .1), 0 40px 80px -50px #000; }
+body[data-mode="parent"] .panel { padding: 30px; }
+body[data-mode="parent"] .panel-head h2 { font-size: 28px; }
+body[data-mode="parent"] .metric, body[data-mode="parent"] .package, body[data-mode="parent"] .store-toggle, body[data-mode="parent"] .pay { background: rgba(0, 0, 0, .35); }
+body[data-mode="parent"] .big, body[data-mode="parent"] .total { font-size: 64px; }
+body[data-mode="parent"] .tile small { font: italic 15px var(--display); }
+body[data-mode="parent"] .tile-link { text-transform: uppercase; letter-spacing: .16em; font-size: 11px; }
+body[data-mode="parent"] .empty-orb { background: none; border-color: var(--line-2); box-shadow: 0 0 60px -14px rgba(217, 189, 126, .6); }
+body[data-mode="parent"] .gift-card { background: #0d0b08; border-radius: 4px; }
+body[data-mode="parent"] .gift-card.on { box-shadow: none; border-color: var(--line-2); }
+body[data-mode="parent"] .gift-art::after { background: linear-gradient(180deg, transparent 55%, #0d0b08); }
+body[data-mode="parent"] .gift-body b { font-size: 23px; }
+body[data-mode="parent"] .price { font: italic 19px var(--display); }
+body[data-mode="parent"] .gift-state { border-radius: 2px; letter-spacing: .14em; text-transform: uppercase; font-size: 9.5px; }
+body[data-mode="parent"] .gift-card.on .gift-state { color: var(--accent); }
+body[data-mode="parent"] .action-bar { border-radius: 4px; background: rgba(14, 12, 9, .94); }
+body[data-mode="parent"] .handoff-worlds img { border-radius: 2px; }
+body[data-mode="parent"] .route-fill, body[data-mode="parent"] .node.on, body[data-mode="parent"] .craft { --tone: var(--accent); }
+body[data-mode="parent"] .package.warn :is(.route-fill, .node.on, .craft) { --tone: var(--ember); }
+body[data-mode="parent"] .toy-img { border-radius: 4px; }
+body[data-mode="parent"] .stack .toy-img { border-radius: 50%; border-color: #14110c; }
+body[data-mode="parent"] .wish-rows .toy-img { border-radius: 2px; }
+
+/* The window: tonight's display. */
+.vitrine { grid-column: 1 / -1; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .92fr); gap: 0 clamp(20px, 4vw, 64px); align-items: center; min-height: min(620px, 72dvh); padding: clamp(26px, 4vw, 56px); border: 1px solid var(--line); overflow: hidden; background: linear-gradient(120deg, #0d0b08 30%, #17130d); box-shadow: inset 0 0 0 7px #070605, inset 0 0 0 8px rgba(217, 189, 126, .22), 0 60px 120px -60px #000; }
+.vitrine::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(50% 70% at 76% 50%, rgba(255, 213, 138, .16), transparent 70%); }
+.vitrine-copy { position: relative; display: grid; gap: 16px; justify-items: start; align-content: center; grid-column: 1; grid-row: 1; }
+.vitrine-copy h2 { font-size: clamp(38px, 4.6vw, 66px); line-height: 1; }
+.vitrine-copy > p:not(.nights) { font: italic clamp(18px, 1.7vw, 22px)/1.45 var(--display); max-width: 30ch; }
+.vitrine-copy .btn { margin-top: 10px; }
+.nights { display: flex; align-items: center; gap: 18px; padding-bottom: 22px; margin-bottom: 8px; border-bottom: 1px solid var(--line); width: 100%; }
+.nights b { font: 400 clamp(84px, 10vw, 150px)/.8 var(--display); letter-spacing: -.04em; background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nights span { font: 500 11px/1.9 var(--mono); letter-spacing: .26em; text-transform: uppercase; color: var(--text-2); }
+/* An arched window with the snow globe scene behind the glass. */
+.globe.vitrine-art { grid-column: 2; grid-row: 1; position: relative; width: 100%; max-width: 520px; height: 100%; min-height: 360px; aspect-ratio: auto; justify-self: center; align-self: stretch; border-radius: 999px 999px 4px 4px; overflow: hidden; box-shadow: 0 0 0 1px rgba(217, 189, 126, .7), 0 0 0 9px #0b0907, 0 0 0 10px rgba(217, 189, 126, .35), 0 40px 90px -30px #000, 0 0 120px -30px rgba(255, 213, 138, .5); }
+.globe.vitrine-art img { border-radius: 0; object-position: 50% 45%; box-shadow: none; scale: 1.5; animation: window-drift 30s ease-in-out infinite alternate; }
+@keyframes window-drift { from { translate: -3% 1%; } to { translate: 3% -2%; } }
+.globe.vitrine-art::after { border-radius: 0; background: linear-gradient(115deg, rgba(255, 255, 255, .16), transparent 26%), linear-gradient(0deg, rgba(7, 6, 5, .55), transparent 30%); box-shadow: inset 0 0 60px rgba(0, 0, 0, .6); }
+.globe.vitrine-art canvas { border-radius: 0; }
+.vitrine .steps { margin-top: clamp(22px, 3vw, 40px); padding-top: 22px; border-top: 1px solid var(--line); }
+body[data-mode="parent"] .steps li { letter-spacing: .2em; font-size: 9.5px; }
+body[data-mode="parent"] .steps i { background: #0b0907; }
+body[data-mode="parent"] .steps li.done::before, body[data-mode="parent"] .steps li.now::before { background: var(--accent); }
+body[data-mode="parent"] .tile.stat { grid-column: span 4; }
+@media (max-width: 1080px) { body[data-mode="parent"] .tile.stat { grid-column: span 6; } }
+@media (max-width: 820px) {
+  body[data-mode="parent"] h1 { font-size: 46px; }
+  .vitrine { grid-template-columns: 1fr; padding: 22px 20px 24px; min-height: 0; gap: 22px; }
+  .globe.vitrine-art { grid-column: 1; grid-row: 1; height: 300px; min-height: 0; max-width: 300px; margin: 0; }
+  .vitrine-copy { grid-row: 2; }
+  .nights b { font-size: 84px; }
+  body[data-mode="parent"] .panel { padding: 20px; }
+  body[data-mode="parent"] .tile.stat { grid-column: 1 / -1; }
+  body[data-mode="parent"] .big, body[data-mode="parent"] .total { font-size: 52px; }
+}

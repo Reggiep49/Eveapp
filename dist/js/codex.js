@@ -268,7 +268,7 @@ export async function createCodex(canvas, stage, options) {
     cur: spread ? start : Math.floor(start / 2), side: spread || start % 2 ? 'right' : 'left', panning: false, goalPage: null, mode: options.opened ? 'open' : 'closed', alive: true, time: 0, last: performance.now(),
     w: 0, h: 0, mvp: ident(), inv: ident(), baseVP: ident(), camX: 0.5,
     arrive: options.opened || reduced ? 1 : 0, hinge: 0, held: 0, sheen: 0, hotK: options.opened ? 1 : 0, tilt: [0, 0], tiltTarget: [0, 0],
-    turn: null, riffle: null, leftTex: null, rightTex: null, glow: 0,
+    waiting: !!options.wait, hingeTarget: null, turn: null, riffle: null, leftTex: null, rightTex: null, glow: 0,
   };
   const follow = u => { const t = clamp((u - 0.18) / 0.7, 0, 1); return t * t * (3 - 2 * t); };
   function camTarget() {
@@ -364,6 +364,7 @@ export async function createCodex(canvas, stage, options) {
   function render() {
     camera();
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (s.waiting) return;   // still inside its box
     gl.uniformMatrix4fv(U.uMVP, false, s.mvp); gl.uniform3f(U.uLight, ...light()); gl.uniform1f(U.uTime, s.time); gl.uniform1f(U.uSheen, s.sheen);
     const opening = s.mode !== 'closed' || s.hinge > 0, opened = ease(s.hinge / PI), isOpen = s.mode === 'open';
     const progress = count > 1 ? s.cur / (count - 1) : 0;
@@ -392,7 +393,7 @@ export async function createCodex(canvas, stage, options) {
       leftTex = s.riffle.left; rightTex = s.riffle.under; sheet = {front: s.riffle.front, back: s.riffle.back, ...foldOf(s.riffle)};
     }
     const hotOn = isOpen && !active;
-    if (opening || isOpen) {
+    if ((opening && s.mode !== 'closed') || isOpen) {
       if (isOpen || s.riffle) draw({rect: PAGE_L, front: leftTex, gutter: -1, shadow: sheet?.shadow, tint: [glow, glow, glow], life: isOpen ? 1 : 0, hot: hotOn ? options.hot?.(s.cur, 'left') : null});
       draw({rect: PAGE_R, front: rightTex, gutter: 1, shadow: sheet?.shadow, tint: [glow, glow, glow], life: isOpen ? 1 : 0, hot: hotOn ? options.hot?.(s.cur, 'right') : null});
     } else { const lit = 1 + s.held * 2.2; draw({rect: PAGE_R, front: T.title, gutter: 1, tint: [lit, lit * 0.96, lit * 0.82]}); }
@@ -419,7 +420,12 @@ export async function createCodex(canvas, stage, options) {
       const goal = camTarget();
       s.camX += (goal - s.camX) * (1 - Math.exp(-dt * (s.turn || s.riffle ? 16 : s.panning ? 7 : 3.2)));
       if (s.panning && Math.abs(goal - s.camX) < 0.006) { s.camX = goal; s.panning = false; camera(); arrived(); }
-      if (s.arrive < 1) { s.arrive = Math.min(1, s.arrive + dt / 2.6); if (s.arrive >= 1) on.settle?.(); }
+      if (s.mode === 'closed' && s.hingeTarget !== null) {
+        // The cover follows the finger, and settles back if it is let go too soon.
+        s.hinge += (s.hingeTarget - s.hinge) * (1 - Math.exp(-dt * 14));
+        if (s.hingeTarget === 0 && s.hinge < 0.012) { s.hinge = 0; s.hingeTarget = null; }
+      }
+      if (s.arrive < 1 && !s.waiting) { s.arrive = Math.min(1, s.arrive + dt / (options.wait ? 1.9 : 2.6)); if (s.arrive >= 1) on.settle?.(); }
       if (s.mode === 'closed' && (s.frame = (s.frame || 0) + 1) % 6 === 0) on.track?.();
       s.sheen += dt * (0.5 + s.held * 3);
       s.glow = Math.max(0, s.glow - dt * 1.4);
@@ -500,13 +506,26 @@ export async function createCodex(canvas, stage, options) {
     s.mode = 'opening'; next();
   }
 
+  function openCover() {
+    if (s.mode !== 'closed') return;
+    s.mode = 'opening'; s.held = 0; s.hingeTarget = null; s.rightTex = T.title; s.leftTex = T.endpaper;
+    if (reduced) s.hinge = PI - 0.001;
+    on.coverOpen?.();
+  }
+
   /* ----- Touch ----- */
   const abort = new AbortController(), opts = {signal: abort.signal};
   let g = null, moved = false;
   const local = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   stage.addEventListener('pointerdown', e => {
-    if (s.mode !== 'open' || e.button > 0 || s.riffle || (s.turn && !s.turn.auto)) return;
+    if (e.button > 0) return;
     const [px, py] = local(e), p = toPage(px, py);
+    if (s.mode === 'closed' && !s.waiting && s.arrive >= 1) {
+      // The cover opens the same way a page turns: take hold and sweep it across.
+      g = {cover: true, id: e.pointerId, sx: e.clientX, wpp: Math.abs(toPage(px + 1, py)[0] - p[0]), lastX: e.clientX, lastT: performance.now(), vx: 0, progress: 0, active: false};
+      return;
+    }
+    if (s.mode !== 'open' || s.riffle || (s.turn && !s.turn.auto)) return;
     if (s.panning) return;
     g = {id: e.pointerId, sx: e.clientX, sy: e.clientY, p, wpp: toPage(px + 1, py)[0] - p[0], lastX: e.clientX, lastT: performance.now(), vx: 0, turn: null};
     moved = false;
@@ -514,6 +533,16 @@ export async function createCodex(canvas, stage, options) {
   stage.addEventListener('pointermove', e => {
     if (e.pointerType === 'mouse' && !g) { s.tiltTarget = [(e.clientX / innerWidth - 0.5) * 2, (e.clientY / innerHeight - 0.5) * -2]; return; }
     if (!g || e.pointerId !== g.id) return;
+    if (g.cover) {
+      const travel = Math.abs(e.clientX - g.sx), now = performance.now();
+      if (!g.active) { if (travel < 7) return; g.active = true; moved = true; try { stage.setPointerCapture(g.id); } catch {} on.coverGrab?.(); }
+      e.preventDefault();
+      g.progress = clamp(travel * g.wpp / 0.85, 0, 1);
+      s.hingeTarget = g.progress * PI * 0.94;
+      on.coverDrag?.(g.progress);
+      if (now - g.lastT > 12) { g.vx = Math.abs(e.clientX - g.lastX) / (now - g.lastT); g.lastX = e.clientX; g.lastT = now; }
+      return;
+    }
     const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
     if (!g.turn) {
       if (Math.abs(dx) < 7 || Math.abs(dx) < Math.abs(dy) * 0.8) return;
@@ -542,6 +571,13 @@ export async function createCodex(canvas, stage, options) {
   }, opts);
   const release = e => {
     if (!g || (e && e.pointerId !== g.id)) return;
+    if (g.cover) {
+      const {progress, vx, active} = g; g = null;
+      if (!active) return;
+      setTimeout(() => { moved = false; }, 60);
+      if (progress > 0.3 || (progress > 0.08 && vx > 0.5)) { s.hingeTarget = null; openCover(); } else { s.hingeTarget = 0; on.coverRest?.(); }
+      return;
+    }
     const t = g.turn, flick = g.vx * -1; g = null;
     if (!t) return;
     t.dragging = false; t.phiTarget = 0;
@@ -565,7 +601,9 @@ export async function createCodex(canvas, stage, options) {
     get index() { return pageIndex(); }, get count() { return pageCount; }, get mode() { return s.mode; }, get spreadIndex() { return s.cur; }, get side() { return s.side; },
     project, turnTo,
     hold(v) { s.held = v; },
-    open() { if (s.mode !== 'closed') return; s.mode = 'opening'; s.held = 0; s.rightTex = T.title; s.leftTex = T.endpaper; if (reduced) s.hinge = PI - 0.001; },
+    open: openCover,
+    /** Let the book out of its box: it begins its fall into place. */
+    release() { s.waiting = false; },
     destroy() { s.alive = false; abort.abort(); observer.disconnect(); gl.getExtension('WEBGL_lose_context')?.loseContext(); },
   };
 }

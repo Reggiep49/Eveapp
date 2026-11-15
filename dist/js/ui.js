@@ -102,6 +102,8 @@ export const sound = {
   on: savedSound !== 'off',
   toggle() { this.on = !this.on; try { localStorage.setItem('eve-sound', this.on ? 'on' : 'off'); } catch {} if (this.on) chime(0.7); else friction.stop(); return this.on; },
 };
+/** The shared audio clock (created on first use). */
+export const audio = () => context();
 function context() {
   // The page-level `audioContext` is shared so every sound uses one clock.
   const ac = (window.audioContext ||= new (window.AudioContext || window.webkitAudioContext)());
@@ -138,6 +140,8 @@ export const chime = (level = 1) => play(ac => [523.25, 659.25, 783.99, 1046.5].
 export const blip = (freq = 880) => play(ac => { tone(ac, freq, 0, 0.16, 0.022, 'triangle'); tone(ac, freq * 1.5, 0.04, 0.2, 0.012); });
 export const whoosh = () => play(ac => burst(ac, {freq: 300, to: 2600, length: 0.7, volume: 0.2, q: 0.8}));
 export const horn = () => play(ac => [310, 420, 605].forEach(f => tone(ac, f, 0, 1, 0.05, 'triangle')));
+/** Sleigh bells at the door: a delivery has arrived. */
+export const sleigh = () => play(ac => { for (let i = 0; i < 7; i++) for (const f of [5200, 6900, 8300]) tone(ac, f * (0.98 + Math.random() * 0.04), i * 0.13 + Math.random() * 0.01, 0.12, 0.012, 'square'); tone(ac, 196, 1.0, 0.25, 0.1, 'sine', 120); tone(ac, 196, 1.22, 0.25, 0.1, 'sine', 120); });
 /** A sheet lifting off the stack. */
 export const paper = () => play(ac => burst(ac, {freq: 2400, to: 1200, length: 0.22, volume: 0.1, q: 0.5}));
 /** A page coming to rest: soft air, then the pat of paper on paper. */

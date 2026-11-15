@@ -8,14 +8,15 @@ Two sides, one sky.
 
 - **The child's side is a real book.** It arrives closed, with the child's name in gold on the cover. Press and hold the star and it opens. Pages are sheets of paper in a 3D scene: they curl around the finger, show their other side, cast a shadow, and fall back if let go early.
 - **Sending is something the child does, not a film they watch.** The letter folds, a wax seal presses on, and the child flicks it into the sky, where it becomes a new star.
-- **The grown-ups' side is a control room.** One screen, "Tonight", always answers "what do I do next?" and shows the countdown, wishes, budget and deliveries at a glance.
-- **A live aurora sits behind everything.** It is cool mint and blue for grown-ups and warms on the child's side.
+- **The grown-ups' side is a Christmas shop window.** Black, ivory and champagne gold, large serif type, hairlines. One screen, "Tonight", always answers "what do I do next?" beside an arched window onto the snow globe, with the countdown, wishes, budget and deliveries below.
+- **Snow falls everywhere.** A live aurora sits behind the child's side; on the grown-ups' side it is dimmed to a warm glow.
 
 ## What is new
 
 | Before | Now |
 | --- | --- |
-| A book cover you click | An overture: a line of story, then a leather book falls in from far away and lands. Press and hold the gold star and it builds (the book trembles, light leaks from its edges, snow is drawn in, the sound climbs), there is a beat of silence, then it bursts open in light and sparks and the first leaves riffle past |
+| A book cover you click | A surprise box, delivered by Pip the elf. Press and hold it and it builds (the box rattles, the lid lifts, light leaks out, snow is drawn in, the sound climbs), there is a beat of silence, then it bursts and the closed book flies out. The child swipes the cover open the same way they will turn every page. The full box plays once a day for each child; after that the book is simply waiting |
+| No music | A composed score: public-domain carols on a music box, a different mood for the box, the book, the wishes and the grown-ups' side |
 | Still pictures | A living scene: snow falls in depth and swirls when a page sweeps past, lanterns and firelight in the paintings shimmer, and the room behind the book drifts and flickers |
 | A page that rotated as one stiff sheet | Paper that peels from wherever it is grabbed, bends around a cylinder, lags the finger slightly like something with weight, and can be caught mid-air. Every sheet is printed on both sides; on a phone the turned page lands as the next page and the view follows it across |
 | "+" pins covering the pictures | Toys glow softly in the picture itself; names peek out when a page lands, then leave the art clean |
@@ -45,6 +46,7 @@ No build step and no packages. `dist/index.html` loads four stylesheets and one 
 | `dist/js/ui.js` | Icons, dialogs, toasts, sound, press-and-hold |
 | `dist/js/aurora.js` | The WebGL sky (falls back to a still gradient) |
 | `dist/js/atmosphere.js` | Falling snow and sparks |
+| `dist/js/music.js` | The carol score, arranged in the browser with no audio files |
 | `dist/js/hologram.js` | The spinnable toy projection |
 | `dist/engines/` | Carried over unchanged: toy geometry |
 | `dist/styles/` | `base` (tokens and controls), `parent`, `kid` |
@@ -73,6 +75,6 @@ The earlier page engine, the 24-second letter flight and its artwork, and files 
 
 ## Assets
 
-The three world illustrations and the snow globe are the same artwork, re-encoded as WebP. The book cover, endpapers and title page are drawn by the app. Toy thumbnails are crops of the world illustrations. Fonts are Instrument Serif, Geist and Geist Mono (SIL Open Font License; see `dist/assets/fonts/LICENSES.txt`).
+The three world illustrations, the snow globe and the elf scene are the same artwork from earlier editions. The elf is a still used as a stand-in until an animated delivery exists. The music is Silent Night, Deck the Halls, Jingle Bells, We Wish You a Merry Christmas and Carol of the Bells, all in the public domain. The book cover, endpapers and title page are drawn by the app. Toy thumbnails are crops of the world illustrations. Fonts are Instrument Serif, Geist and Geist Mono (SIL Open Font License; see `dist/assets/fonts/LICENSES.txt`).
 
 All orders, cards, email scanning, delivery updates and alerts remain simulations.

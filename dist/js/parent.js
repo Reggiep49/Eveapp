@@ -39,21 +39,18 @@ views.home = {
     const chosen = letter ? totalCents(store.selectedItems(letter)) : totalCents(wishes);
     const current = j.steps.findIndex(s => !s.done);
     return `<div class="page">
-      ${pageHead(new Date().toLocaleDateString('en-US', {weekday: 'long', month: 'long', day: 'numeric'}).toUpperCase(), `${hello}.`, days > 0 ? `${plural(days, 'sleep')} until Christmas ${year}.` : days === 0 ? 'It’s Christmas morning.' : 'Merry Christmas.', profileChips())}
+      ${pageHead(`THE HOLIDAY EDIT <i>✦</i> ${new Date().toLocaleDateString('en-US', {weekday: 'long', month: 'long', day: 'numeric'}).toUpperCase()}`, `${hello}.`, `Everything for ${name()}’s Christmas, in one place.`, profileChips())}
       <div class="bento">
-        <article class="tile next">
-          <div class="next-copy">
+        <section class="vitrine">
+          <button class="globe vitrine-art" data-action="shake" aria-label="Shake the snow globe"><img src="assets/eve-snowglobe.webp" alt="" draggable="false"><canvas id="globe-snow" aria-hidden="true"></canvas></button>
+          <div class="vitrine-copy">
+            <p class="nights"><b>${Math.max(days, 0)}</b><span>${days === 1 ? 'night' : 'nights'} until<br>Christmas ${year}</span></p>
             <span class="eyebrow">NEXT</span>
             <h2>${title}</h2><p>${text}</p>
-            <button class="btn glow" data-action="${action}" data-page="${page}" data-key="next">${cta} ${icon('arrow', 18)}</button>
+            <button class="btn glow" data-action="${action}" data-page="${page}" data-key="next">${cta} ${icon('arrow', 16)}</button>
           </div>
-          <button class="globe" data-action="shake" aria-label="Shake the snow globe"><span class="globe-orbit o1"></span><span class="globe-orbit o2"></span><img src="assets/eve-snowglobe.webp" alt="" draggable="false"><canvas id="globe-snow" aria-hidden="true"></canvas></button>
-          <ol class="steps" aria-label="Your Christmas so far">${j.steps.map((s, i) => `<li class="${s.done ? 'done' : i === current ? 'now' : ''}"><i>${s.done ? icon('check', 12) : ''}</i><span>${s.label}</span></li>`).join('')}</ol>
-        </article>
-        <article class="tile countdown">
-          <span class="eyebrow">COUNTDOWN</span>
-          ${ring(1 - Math.min(days, 60) / 60, String(Math.max(days, 0)), days === 1 ? 'sleep' : 'sleeps')}
-        </article>
+          <ol class="steps" aria-label="Your Christmas so far">${j.steps.map((s, i) => `<li class="${s.done ? 'done' : i === current ? 'now' : ''}"><i>${s.done ? icon('check', 11) : ''}</i><span>${s.label}</span></li>`).join('')}</ol>
+        </section>
         <button class="tile stat" data-action="go" data-page="${letter ? 'mail' : 'portal'}" data-key="t-wishes">
           <span class="eyebrow">${letter ? 'IN THE LETTER' : 'WISHES SO FAR'}</span>
           <b class="big">${letter ? letter.gifts.length : wishes.length}</b>

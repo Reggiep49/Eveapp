@@ -2,6 +2,7 @@
 
 import * as store from './store.js';
 import {icon, safe, sound, $, reducedMotion, closeDialog, dismissToast, plural} from './ui.js';
+import {music} from './music.js';
 
 export const nav = {page: 'home', realm: 0, bookOpen: false, star: null, filter: 'all', deliveryFilter: 'all', morning: null};
 export const views = {};    // page -> {mode: 'parent' | 'kid', html(), mount?(root), unmount?(), bare?}
@@ -56,6 +57,7 @@ export function render({enter = false} = {}) {
   aurora.setWarm(view.warm ?? (view.mode === 'kid' ? 0.55 : 0));
   aurora.pause(!!view.opaque);
   sky.density(view.snow ?? (view.mode === 'kid' ? 0.75 : 0.3));
+  if (view.music !== null) music.scene(view.music || (view.mode === 'kid' ? 'dream' : 'hearth'));
   if (enter) {
     scrollTo({top: 0, behavior: 'instant'});
     requestAnimationFrame(() => root.querySelector('h1')?.focus({preventScroll: true}));

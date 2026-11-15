@@ -4,7 +4,8 @@ import * as store from './store.js';
 import {realms, ART, findGift, activities} from './data.js';
 import {nav, views, actions, sky, go, render} from './app.js';
 import {icon, safe, plural, toyImage, $, $$, reducedMotion, compact, announce, toast, openDialog, closeDialog,
-  sound, chime, blip, whoosh, horn, paper, pageLand, thud, starBorn, rise, charge, drone, crescendo, friction, buzz, sparkFlight} from './ui.js';
+  sound, chime, blip, whoosh, horn, paper, pageLand, thud, starBorn, rise, charge, crescendo, coverOpen, sleigh, friction, buzz, sparkFlight} from './ui.js';
+import {music} from './music.js';
 import {createCodex} from './codex.js';
 import {mountHologram, hasModel} from './hologram.js';
 
@@ -21,7 +22,11 @@ actions.profile = el => {
   views[nav.page].mode === 'kid' ? go('world') : render();
 };
 
-let book = null, bookToken = null, stopCharge = null, stopDrone = null;
+let book = null, bookToken = null, stopCharge = null;
+// The surprise box plays in full once a day for each child; after that the book is simply waiting.
+const boxKey = () => `eve-box-${store.profile().id}`, today = () => new Date().toDateString();
+const boxSeen = () => { try { return localStorage.getItem(boxKey()) === today(); } catch { return false; } };
+const markBoxSeen = () => { try { localStorage.setItem(boxKey(), today()); } catch {} };
 const leafOf = t => (t.x < 50 ? 'left' : 'right');
 const wideBook = () => !compact.matches;
 /** What the reader is looking at: a whole spread on a wide screen, one side of it on a phone. */
@@ -32,29 +37,42 @@ function bookView(index) {
 }
 
 views.world = {
-  mode: 'kid', opaque: true, snow: 1,
+  mode: 'kid', opaque: true, snow: 1, music: null,   // the book chooses its own music as it opens
   html() {
     const spreads = openRealms();
     if (!spreads.length) return `<section class="kid-empty"><span class="eyebrow">ALMOST READY</span><h1 tabindex="-1">The elves are still setting up.</h1><p>Ask a grown-up to add a few discoveries to your book.</p></section>`;
     const total = wideBook() ? spreads.length : spreads.length * 2;
     nav.realm = Math.max(0, Math.min(nav.realm, total - 1));
     const first = bookView(nav.realm).spread;
-    return `<section class="lookbook" id="lookbook" data-state="${nav.bookOpen ? 'open' : 'closed'}" style="--glow:${first.color}">
+    const state = nav.bookOpen ? 'open' : boxSeen() ? 'closed' : 'gift';
+    return `<section class="lookbook" id="lookbook" data-state="${state}" style="--glow:${first.color}">
+      <div class="elf-scene" aria-hidden="true"><img src="assets/elf.webp" alt=""></div>
       <div class="book-backdrop" aria-hidden="true"><img id="book-glow" src="assets/realm-${first.id}-sm.webp" alt=""><i class="firelight"></i></div>
       <div class="book-halo" aria-hidden="true"></div>
       <canvas id="codex" class="codex" aria-hidden="true"></canvas>
       <div class="book-rays" aria-hidden="true"></div>
       <div class="book-flash" aria-hidden="true"></div>
       <header class="book-head">
-        <div class="cover-head"><p class="overture">Far to the north, a book has been waiting.</p><h1 tabindex="-1">${name()}, this one <em>is yours.</em></h1></div>
+        <div class="gift-head"><span class="eyebrow">SPECIAL DELIVERY <i>✦</i> THE NORTH POLE</span><h1 tabindex="-1">Something for <em>${name()}.</em></h1><p class="overture">Pip the elf carried it all the way from the workshop.</p></div>
+        <div class="cover-head"><p class="overture">Far to the north, a book has been waiting.</p><h2 class="cover-line">${name()}, this one <em>is yours.</em></h2></div>
         <div class="world-title" id="book-title"></div>
       </header>
       <div class="book-stage" id="book-stage">
         <div class="marker-layer" id="markers"></div>
-        <button class="seal" id="seal" data-hold data-hold-ms="1900" data-hold-action="open-book" aria-label="Press and hold the star to open the book"><span class="hold-ring" aria-hidden="true"></span></button>
+        <div class="gift" id="gift" aria-hidden="${state !== 'gift'}">
+          <div class="gift-glow"></div>
+          <div class="gift-box">
+            <i class="gf gf-back"></i><i class="gf gf-left"></i><i class="gf gf-right"></i><i class="gf gf-front"><span class="gift-tag">For ${name()}</span></i>
+            <i class="gift-light"></i>
+            <div class="gift-lid"><i class="gl gl-top"></i><i class="gl gl-front"></i><i class="gl gl-left"></i><i class="gl gl-right"></i><i class="gl gl-back"></i><span class="bow"><i></i><i></i><b></b></span></div>
+          </div>
+          <button class="gift-hold" id="gift-hold" data-hold data-hold-ms="2000" data-hold-action="open-box" aria-label="Press and hold to open the box" ${state === 'gift' ? '' : 'tabindex="-1"'}><span class="hold-ring" aria-hidden="true"></span></button>
+        </div>
+        <button class="sr-only" id="seal" data-action="open-cover">Open the book</button>
       </div>
       <footer class="book-foot">
-        <div class="cover-foot"><p class="cover-hint">${icon('hand', 18)} Press and hold the star</p>${siblings()}</div>
+        <div class="gift-foot"><p class="cover-hint">${icon('hand', 18)} Press and hold the box</p></div>
+        <div class="cover-foot"><p class="cover-hint swipe">${icon('hand', 18)} Swipe the cover to open your book</p>${siblings()}</div>
         <nav class="realm-rail" id="book-rail" aria-label="Pages">
           <button class="rail-arrow" id="turn-back" data-action="turn" data-step="-1" aria-label="Turn back a page">${icon('back', 20)}</button>
           <div class="rail-middle"><span class="turn-hint">${icon('hand', 16)} Drag the page to turn it</span><span class="page-dots" id="page-dots"></span></div>
@@ -64,7 +82,7 @@ views.world = {
     </section>`;
   },
   mount(root) { mountBook(root); },
-  unmount() { bookToken = null; book?.destroy(); book = null; stopCharge?.(); stopDrone?.(); stopDrone = null; friction.stop(); sky.pull(); },
+  unmount() { bookToken = null; book?.destroy(); book = null; stopCharge?.(); friction.stop(); sky.pull(); },
 };
 
 async function mountBook(root) {
@@ -77,7 +95,7 @@ async function mountBook(root) {
   const spots = (p, side) => p.toys.filter(t => ok.includes(t.id) && leafOf(t) === side)
     .map(t => ({t, u: (t.x % 50) / 50, v: t.y / 100, w: t.w / 50, h: t.h / 100}));
   const abort = new AbortController();
-  const centre = () => { const r = $('#seal').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const centre = () => { const r = stage.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
   function paint() {
     if (token !== bookToken || !book || book.mode !== 'open') return;
@@ -101,29 +119,27 @@ async function mountBook(root) {
     forward.setAttribute('aria-label', last ? 'See my wishes' : 'Turn the page');
     Object.assign(forward.dataset, last ? {action: 'go', page: 'wishes'} : {action: 'turn', step: '1'});
   }
-  const placeSeal = () => {
-    if (!book) return;
-    const box = stage.getBoundingClientRect(), cv = $('#codex').getBoundingClientRect(), [cx, cy] = book.project('right', 0.5, 420 / 1152), [ex] = book.project('right', 0.5 + 150 / 1024, 420 / 1152);
-    Object.assign($('#seal').style, {left: `${cx - (box.left - cv.left)}px`, top: `${cy - (box.top - cv.top)}px`, width: `${Math.abs(ex - cx) * 2}px`});
-    shell.style.setProperty('--bx', `${cx}px`); shell.style.setProperty('--by', `${cy}px`);
-  };
+  const placeSeal = () => { const [x, y] = centre(), cv = $('#codex').getBoundingClientRect(); shell.style.setProperty('--bx', `${x - cv.left}px`); shell.style.setProperty('--by', `${y - cv.top}px`); };
   const arrive = (i, quiet) => {
     nav.realm = i; shell.classList.remove('arrived', 'turning'); void shell.offsetWidth; shell.classList.add('arrived'); paint();
     const v = bookView(i); if (!quiet) announce(`Page ${i + 1} of ${v.total}. ${v.spread.title}.`);
   };
 
   const made = await createCodex($('#codex', root), stage, {
-    spread: wide, reduced: reducedMotion.matches, start: nav.realm, opened: !!nav.bookOpen,
+    spread: wide, reduced: reducedMotion.matches, start: nav.realm, opened: !!nav.bookOpen, wait: shell.dataset.state === 'gift',
     name: store.childName(), year: new Date().getFullYear(),
     line: `${plural(spreads.length, 'world')} · ${plural(store.curated().length, 'discovery')}`,
     openings: spreads.map(p => ({src: `assets/realm-${p.id}.webp`, leftHidden: hidden(p, 'left'), rightHidden: hidden(p, 'right')})),
     hot: (i, side) => spots(spreads[i], side).map(({u, v}) => [u, 1 - v, 0.9]),
     on: {
       layout() { placeSeal(); paint(); },
-      track() { placeSeal(); },
       settle() { thud(1); buzz('heavy'); shell.classList.add('landed'); const [x, y] = centre(); sky.burst(x, y + 60, 46, {speed: 190, life: 1.5, gravity: 50, size: 1.8}); sky.gust(0.5); },
       riffle() { paper(); buzz('tick'); sky.gust(-0.7); },
-      open() { shell.dataset.state = 'open'; chime(0.7); buzz('firm'); announce(`The book is open. ${bookView(book.index).spread.title}.`); },
+      coverGrab() { paper(); buzz('soft'); shell.classList.add('lifting'); },
+      coverDrag(p) { friction.set(0.25 + p * 0.5); },
+      coverRest() { friction.set(0); buzz('tick'); shell.classList.remove('lifting'); },
+      coverOpen() { nav.bookOpen = true; shell.dataset.state = 'opening'; shell.classList.add('flash'); friction.set(0); coverOpen(); buzz([40, 30, 60]); const [x, y] = centre(); sky.burst(x, y, 60, {speed: 380, up: 120, life: 1.6, gravity: 160}); sky.gust(1.4); },
+      open() { shell.dataset.state = 'open'; music.scene('book'); buzz('firm'); announce(`The book is open. ${bookView(book.index).spread.title}.`); },
       page(i) { arrive(i); },
       pan() { shell.classList.add('turning'); paper(); buzz('soft'); },
       lift() { shell.classList.add('turning'); paper(); buzz('soft'); },
@@ -136,22 +152,27 @@ async function mountBook(root) {
     },
   });
   if (token !== bookToken) { made?.destroy(); return; }
-  if (!made) { shell.dataset.state = 'flat'; return flatBook(shell, spreads, spots); }
+  if (!made) { shell.dataset.state = 'flat'; music.scene('book'); return flatBook(shell, spreads, spots); }
   book = made;
   shell.classList.add('ready');
   placeSeal(); paint();
-  if (book.mode === 'closed') { stopDrone?.(); stopDrone = drone(); whoosh(); }
+  music.scene(book.mode === 'open' ? 'book' : 'anticipation');
+  if (shell.dataset.state === 'gift') {
+    sleigh();
+    // The box lands on the elf's desk.
+    if (!reducedMotion.matches) setTimeout(() => { if (token !== bookToken || shell.dataset.state !== 'gift') return; thud(1); buzz('heavy'); const [x, y] = centre(); sky.burst(x, y + 70, 40, {speed: 200, life: 1.3, gravity: 60, size: 1.8}); }, 2250);
+  } else if (book.mode === 'closed') whoosh();
 
-  // Holding the star: the book trembles, light leaks out, snow is drawn in, and the ticks come faster.
-  const seal = $('#seal'); let lastTick = 0;
-  seal.addEventListener('holdstart', () => { stopCharge?.(); stopCharge = charge(); buzz('soft'); shell.classList.add('charging'); }, {signal: abort.signal});
-  seal.addEventListener('holdprogress', e => {
+  // Holding the box: it rattles, the lid lifts, light leaks out, snow is drawn in, and the ticks come faster.
+  const hold = $('#gift-hold'); let lastTick = 0;
+  hold.addEventListener('holdstart', () => { stopCharge?.(); stopCharge = charge(); music.duck(0.35); buzz('soft'); shell.classList.add('charging'); }, {signal: abort.signal});
+  hold.addEventListener('holdprogress', e => {
     const p = e.detail, now = performance.now(), [x, y] = centre();
-    book?.hold(p); shell.style.setProperty('--charge', p);
+    shell.style.setProperty('--charge', p);
     sky.pull(x, y, p ? 0.25 + p * 1.6 : 0);
     if (p && now - lastTick > 300 - 240 * p) { lastTick = now; buzz(p > 0.7 ? 'firm' : 'tick'); sky.burst(x, y, 3 + Math.round(p * 7), {inward: 120 + p * 200, life: 0.5, size: 1.6 + p}); }
   }, {signal: abort.signal});
-  seal.addEventListener('holdend', () => { stopCharge?.(); stopCharge = null; sky.pull(); shell.classList.remove('charging'); shell.style.setProperty('--charge', 0); }, {signal: abort.signal});
+  hold.addEventListener('holdend', e => { stopCharge?.(); stopCharge = null; sky.pull(); if (!e.detail) music.duck(1); shell.classList.remove('charging'); shell.style.setProperty('--charge', 0); }, {signal: abort.signal});
   document.addEventListener('keydown', e => {
     if (token !== bookToken) return abort.abort();
     if ($('#dialog').open || e.target.matches('input, textarea, select') || book?.mode !== 'open') return;
@@ -159,23 +180,25 @@ async function mountBook(root) {
     if (e.key === 'ArrowLeft') book.turnTo(book.index - 1);
   }, {signal: abort.signal});
 }
-/** The crescendo: one held breath of silence, then the book bursts open. */
-export function openBook() {
-  if (!book || book.mode !== 'closed') return;
-  const shell = $('#lookbook'), r = $('#seal').getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
-  nav.bookOpen = true;
-  shell.dataset.state = 'opening';
-  stopCharge?.(); stopCharge = null; stopDrone?.(0.05); stopDrone = null; sky.pull();
-  book.hold(1);
+/** The crescendo: one held breath of silence, then the box bursts and the book flies out of it. */
+export function openBox() {
+  const shell = $('#lookbook');
+  if (!book || shell?.dataset.state !== 'gift') return;
+  const r = $('#book-stage').getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+  markBoxSeen();
+  stopCharge?.(); stopCharge = null; sky.pull(); music.duck(0, 0.05);
+  shell.classList.add('hush');
   setTimeout(() => {
     if (!book || $('#lookbook') !== shell) return;
-    book.open(); crescendo(); buzz([70, 40, 30, 40, 30, 60, 110]);
-    shell.classList.add('flash', 'burst');
+    shell.dataset.state = 'closed'; shell.classList.remove('hush'); shell.classList.add('flash', 'burst', 'entering-book');
+    book.release(); crescendo(); music.duck(1, 2.5); buzz([70, 40, 30, 40, 30, 60, 110]);
     sky.burst(x, y, 150, {speed: 620, up: 260, life: 2, size: 2.6, gravity: 240, drag: 1.1});
     sky.burst(x, y, 70, {speed: 240, up: 80, life: 2.8, size: 1.6, gravity: 30, drag: 0.6});
     sky.gust(2.2);
-  }, reducedMotion.matches ? 0 : 170);
+    $('#gift-hold').tabIndex = -1;
+  }, reducedMotion.matches ? 0 : 190);
 }
+actions['open-cover'] = () => book?.open?.();
 actions.turn = el => {
   if (!book) return;
   book.turnTo(el.dataset.index !== undefined ? Number(el.dataset.index) : book.index + Number(el.dataset.step));
